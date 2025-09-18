@@ -35,17 +35,6 @@ async function searchInSheet(sheetName, code) {
     return null;
   }
 }
-    // Buscar el código en la columna 'cod.hypno'
-    const foundRow = rows.find(row => {
-      const rowCode = row.get('cod.hypno');
-      return rowCode && rowCode.toLowerCase().trim() === code.toLowerCase().trim();
-    });
-    return foundRow;
-  } catch (error) {
-    console.error('Error buscando en Sheet:', error);
-    return null;
-  }
-}
 
 // Función principal que procesa los mensajes
 app.post('/webhook', async (req, res) => {
