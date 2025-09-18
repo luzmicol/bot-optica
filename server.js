@@ -81,7 +81,7 @@ Elige una opción:
       responseMessage = "❌ Por favor, escribí un código después de #stock. Ejemplo: #stock AC-269";
     } else {
       // Usamos el nombre de la hoja de las variables de entorno
-      const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK DE ARMAZONES 1';
+      const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1';
       console.log("DEBUG - Buscando en Hoja:", sheetName);
       console.log("DEBUG - Buscando Código:", code);
       
