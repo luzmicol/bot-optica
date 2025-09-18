@@ -10,6 +10,22 @@ async function searchInSheet(sheetName, code) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    await doc.useServiceAccountAuth(credentials);
+    await doc.loadInfo();
+
+    // --- DEBUG: LISTAR TODAS LAS HOJAS ---
+    console.log("Todas las hojas disponibles:");
+    doc.sheetsByIndex.forEach(sheet => {
+      console.log("-", sheet.title);
+    });
+    // ------------------------------------
+
+    const sheet = doc.sheetsByTitle[sheetName];
+    if (!sheet) {
+      console.error(`No se encontró la hoja: '${sheetName}'`);
+      return null;
+    }
+    // ... resto del código igual
     
     // AUTENTICACIÓN PARA VERSIÓN 3.3.0 - FORMA CORRECTA
     await doc.useServiceAccountAuth(credentials);
