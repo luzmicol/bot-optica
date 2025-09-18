@@ -5,7 +5,7 @@ const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 
-// Función para buscar en una hoja específica (VERSIÓN 3.3.0 CORREGIDA)
+// Función para buscar en una hoja específica (VERSIÓN AJUSTADA A TU STRUCTURA)
 async function searchInSheet(sheetName, code) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
@@ -19,19 +19,17 @@ async function searchInSheet(sheetName, code) {
       console.error(`No se encontró la hoja: '${sheetName}'`);
       return null;
     }
-    const rows = await sheet.getRows();
 
-    // --- DEBUG: MOSTRAR LAS PRIMERAS FILAS ---
-    console.log("Primeras 3 filas de datos:");
-    for (let i = 0; i < Math.min(3, rows.length); i++) {
-      console.log(`Fila ${i + 1}:`, rows[i]);
-    }
-    // -----------------------------------------
+    // --- HEADERS EN FILA 3, DATOS DESDE FILA 4 ---
+    await sheet.loadHeaderRow(3); // Headers en fila 3
+    const rows = await sheet.getRows();
+    
+    console.log("Headers detectados:", sheet.headerValues); // ← Debug crucial
 
     // Buscar el código en la columna 'COD. HYPNO'
     const foundRow = rows.find(row => {
       const rowCode = row['COD. HYPNO'];
-      console.log(`Comparando: '${rowCode}' con '${code}'`); // ← Debug extra
+      console.log(`Comparando: '${rowCode}' con '${code}'`);
       return rowCode && rowCode.toLowerCase().trim() === code.toLowerCase().trim();
     });
     return foundRow;
@@ -77,7 +75,7 @@ Elige una opción:
   } else if (incomingMessage.toLowerCase().startsWith('#stock ')) {
     const code = incomingMessage.split(' ')[1];
     if (!code) {
-      responseMessage = "❌ Por favor, escribí un código después de #stock. Ejemplo: #stock AC-269";
+      responseMessage = "❌ Por favor, escribí un código después de #stock. Ejemplo: #stock AC-274";
     } else {
       const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1';
       console.log("DEBUG - Buscando en Hoja:", sheetName);
