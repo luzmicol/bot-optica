@@ -7,13 +7,15 @@ app.use(express.urlencoded({ extended: true }));
 
 // Configuración de Google Sheets
 const SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
-const doc = new GoogleSpreadsheet(SHEETS_ID);
 
-// Función para buscar en una hoja específica (VERSIÓN DEFINITIVA)
+// Función para buscar en una hoja específica (VERSIÓN 100% ACTUALIZADA)
 async function searchInSheet(sheetName, code) {
   try {
-    // AUTENTICACIÓN NUEVA para la versión actual de la librería
+    // AUTENTICACIÓN NUEVA - FORMA CORRECTA
+    const doc = new GoogleSpreadsheet(SHEETS_ID);
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    
+    // Autenticación con la cuenta de servicio
     await doc.useServiceAccountAuth(credentials);
     
     await doc.loadInfo();
@@ -24,9 +26,9 @@ async function searchInSheet(sheetName, code) {
     }
     const rows = await sheet.getRows();
 
-    // Buscar el código en la columna 'COD. HYPNO' (¡EXACTO como está en el Sheets!)
+    // Buscar el código en la columna 'COD. HYPNO'
     const foundRow = rows.find(row => {
-      const rowCode = row.get('COD. HYPNO'); // <- CAMBIADO A 'COD. HYPNO'
+      const rowCode = row.get('COD. HYPNO');
       return rowCode && rowCode.toLowerCase().trim() === code.toLowerCase().trim();
     });
     return foundRow;
@@ -80,7 +82,7 @@ Elige una opción:
       const product = await searchInSheet(process.env.SHEETS_ARMAZONES, code);
       if (product) {
         responseMessage = `
-🏷️  *Código:* ${product.get('COD. HYPNO')}  <!-- CAMBIADO A 'COD. HYPNO' -->
+🏷️  *Código:* ${product.get('COD. HYPNO')}
 👓  *Modelo:* ${product.get('marca')} ${product.get('modelo')}
 🎨  *Color:* ${product.get('color')}
 📦  *Stock:* ${product.get('cantidad')} unidades
