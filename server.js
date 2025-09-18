@@ -85,10 +85,10 @@ Elige una opción:
       if (product) {
         responseMessage = `
 🏷️  *Código:* ${product['COD. HYPNO']}
-👓  *Modelo:* ${product['marca']} ${product['modelo']}
-🎨  *Color:* ${product['color']}
-📦  *Stock:* ${product['cantidad']} unidades
-💲  *Precio:* $${product['precio']}
+👓  *Modelo:* ${product['Marca']} ${product['Modelo']}
+🎨  *Color:* ${product['Color']}
+📦  *Stock:* ${product['Cantidad']} unidades
+💲  *Precio:* $${product['PRECIO']}
         `;
       } else {
         responseMessage = "❌ *Producto no encontrado.*\n\nVerificá el código e intentá nuevamente.";
