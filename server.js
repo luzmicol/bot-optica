@@ -9,12 +9,12 @@ app.use(express.urlencoded({ extended: true }));
 const SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
 const doc = new GoogleSpreadsheet(SHEETS_ID);
 
-// Función para buscar en una hoja específica (VERSIÓN CORREGIDA)
+// Función para buscar en una hoja específica (VERSIÓN MÁS MODERNA)
 async function searchInSheet(sheetName, code) {
   try {
-    // AUTENTICACIÓN CON LA CUENTA DE SERVICIO - FORMA CORRECTA
+    // AUTENTICACIÓN MODERNA con cuenta de servicio
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-    await doc.useServiceAccountAuth(credentials);
+    doc.useServiceAccountAuth(credentials);
     
     await doc.loadInfo();
     const sheet = doc.sheetsByTitle[sheetName];
@@ -44,7 +44,7 @@ app.post('/webhook', async (req, res) => {
 
   let responseMessage = '';
 
-  // --- LÓGICA PRINCIPAL MEJORADA ---
+  // --- LÓGICA PRINCIPAL ---
   if (incomingMessage.toLowerCase() === '#menu' || incomingMessage.toLowerCase() === 'menu' || incomingMessage.toLowerCase() === 'hola') {
     responseMessage = `
 🤖 *HYPNOTTICA - Menú Principal* 🤖
@@ -70,16 +70,13 @@ Elige una opción:
 *Respondé con el número de la opción.*`;
 
   } else if (incomingMessage.toLowerCase().startsWith('#stock ')) {
-    // Comando: #stock COD123
     const code = incomingMessage.split(' ')[1];
     if (!code) {
       responseMessage = "❌ Por favor, escribí un código después de #stock. Ejemplo: #stock RB123";
     } else {
-      // --- DEBUG: Ver qué está buscando ---
       console.log("DEBUG - Buscando en Hoja:", process.env.SHEETS_ARMAZONES);
       console.log("DEBUG - Buscando Código:", code);
-      // -----------------------------------
-      // ¡BUSQUEDA REAL EN EL SHEET!
+      
       const product = await searchInSheet(process.env.SHEETS_ARMAZONES, code);
       if (product) {
         responseMessage = `
