@@ -16,7 +16,7 @@ app.post('/webhook', (req, res) => {
   // --- LÓGICA DEL MENÚ PRINCIPAL ---
   if (incomingMessage === '#menu' || incomingMessage === 'menu' || incomingMessage === 'hola') {
     responseMessage = `
-🤖 *OPTICA - Menú Principal* 🤖
+🤖 *HYPNOTTICA - Menú Principal* 🤖
 
 Elige una opción:
 
@@ -39,7 +39,7 @@ Elige una opción:
     responseMessage = "💎 *Tenemos precios para todos los presupuestos* 💎\n\nDesde armazones económicos hasta de primeras marcas. Contacta con un asesor para recibir una cotización personalizada sin compromiso.";
 
   } else if (incomingMessage === '4' || incomingMessage === '#direccion') {
-    responseMessage = "📍 *Nuestra Dirección* 📍\n\n*Optica Vision*\nAv. Principal 1234, Ciudad.\n\n*Horarios:*\nLunes a Sábados: 10:30 - 19:30";
+    responseMessage = "📍 *Nuestra Dirección* 📍\n\n*HYPNOTTICA*\nSerrano 684, Villa Crespo. CABA.\n\n*Horarios:*\nLunes a Sábados: 10:30 - 19:30";
 
   } else if (incomingMessage === '5') {
     responseMessage = "🔊 Derivando tu conversación a un asesor humano. Por favor, espera un momento...";
