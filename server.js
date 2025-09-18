@@ -21,9 +21,17 @@ async function searchInSheet(sheetName, code) {
     }
     const rows = await sheet.getRows();
 
-    // Buscar el código en la columna 'COD. HYPNO' - FORMA CORRECTA v3.3.0
+    // --- DEBUG: MOSTRAR LAS PRIMERAS FILAS ---
+    console.log("Primeras 3 filas de datos:");
+    for (let i = 0; i < Math.min(3, rows.length); i++) {
+      console.log(`Fila ${i + 1}:`, rows[i]);
+    }
+    // -----------------------------------------
+
+    // Buscar el código en la columna 'COD. HYPNO'
     const foundRow = rows.find(row => {
-      const rowCode = row['COD. HYPNO'];  // ¡Acceso como objeto!
+      const rowCode = row['COD. HYPNO'];
+      console.log(`Comparando: '${rowCode}' con '${code}'`); // ← Debug extra
       return rowCode && rowCode.toLowerCase().trim() === code.toLowerCase().trim();
     });
     return foundRow;
@@ -71,7 +79,7 @@ Elige una opción:
     if (!code) {
       responseMessage = "❌ Por favor, escribí un código después de #stock. Ejemplo: #stock AC-269";
     } else {
-      const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1'; // ← VALOR POR DEFECTO AGREGADO
+      const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1';
       console.log("DEBUG - Buscando en Hoja:", sheetName);
       console.log("DEBUG - Buscando Código:", code);
       
@@ -90,7 +98,7 @@ Elige una opción:
     }
 
   } else if (incomingMessage.toLowerCase() === '3') {
-    responseMessage = "💎 *Tenemos precios para todos los presupuestos* 💎\n\nDesde armazones económicos hasta de primeras marcas. Contacta con un asesor para recibir una cotización personalizada sin compromiso.";
+    responseMessage = "💎 *Tenemos precios para todos los presupuestos* 💎\n\nDesde armazones económicos hasta de primeras marcas. Contacta con un asesor para recibir a cotización personalizada sin compromiso.";
 
   } else if (incomingMessage.toLowerCase() === '4') {
     responseMessage = "📍 *Nuestra Dirección* 📍\n\n*HYPNOTTICA*\nSerrano 684, Villa Crespo. CABA.\n\n*Horarios:*\nLunes a Sábados: 10:30 - 19:30";
