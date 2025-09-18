@@ -26,7 +26,15 @@ async function consultarIA(prompt) {
     });
 
     const data = await response.json();
-    return data.choices[0].message.content;
+    
+    // --- CORRECCIÓN: Verificar si la respuesta tiene datos válidos ---
+    if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+      return data.choices[0].message.content;
+    } else {
+      console.error("Respuesta inesperada de DeepSeek:", data);
+      return "Lo siento, no pude procesar tu pregunta en este momento. ¿Podés intentarlo de nuevo?";
+    }
+    
   } catch (error) {
     console.error("Error calling DeepSeek:", error);
     return "Lo siento, estoy teniendo problemas técnicos. Por favor, intentá de nuevo más tarde.";
