@@ -71,7 +71,7 @@ Elige una opción:
     if (!code) {
       responseMessage = "❌ Por favor, escribí un código después de #stock. Ejemplo: #stock AC-269";
     } else {
-      const sheetName = process.env.SHEETS_ARMAZONES;
+      const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1'; // ← VALOR POR DEFECTO AGREGADO
       console.log("DEBUG - Buscando en Hoja:", sheetName);
       console.log("DEBUG - Buscando Código:", code);
       
