@@ -5,23 +5,14 @@ const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 
-// Función para buscar en una hoja específica (VERSIÓN 3.3.0)
+// Función para buscar en una hoja específica (VERSIÓN 3.3.0 CORREGIDA)
 async function searchInSheet(sheetName, code) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
     
-    // AUTENTICACIÓN PARA VERSIÓN 3.3.0 - FORMA CORRECTA
     await doc.useServiceAccountAuth(credentials);
-    
     await doc.loadInfo();
-
-    // --- DEBUG: LISTAR TODAS LAS HOJAS ---
-    console.log("Todas las hojas disponibles:");
-    doc.sheetsByIndex.forEach(sheet => {
-      console.log("-", sheet.title);
-    });
-    // ------------------------------------
 
     const sheet = doc.sheetsByTitle[sheetName];
     if (!sheet) {
@@ -30,9 +21,9 @@ async function searchInSheet(sheetName, code) {
     }
     const rows = await sheet.getRows();
 
-    // Buscar el código en la columna 'COD. HYPNO'
+    // Buscar el código en la columna 'COD. HYPNO' - FORMA CORRECTA v3.3.0
     const foundRow = rows.find(row => {
-      const rowCode = row.get('COD. HYPNO');
+      const rowCode = row['COD. HYPNO'];  // ¡Acceso como objeto!
       return rowCode && rowCode.toLowerCase().trim() === code.toLowerCase().trim();
     });
     return foundRow;
@@ -80,19 +71,18 @@ Elige una opción:
     if (!code) {
       responseMessage = "❌ Por favor, escribí un código después de #stock. Ejemplo: #stock AC-269";
     } else {
-      // Usamos el nombre de la hoja de las variables de entorno
-      const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1';
+      const sheetName = process.env.SHEETS_ARMAZONES;
       console.log("DEBUG - Buscando en Hoja:", sheetName);
       console.log("DEBUG - Buscando Código:", code);
       
       const product = await searchInSheet(sheetName, code);
       if (product) {
         responseMessage = `
-🏷️  *Código:* ${product.get('COD. HYPNO')}
-👓  *Modelo:* ${product.get('marca')} ${product.get('modelo')}
-🎨  *Color:* ${product.get('color')}
-📦  *Stock:* ${product.get('cantidad')} unidades
-💲  *Precio:* $${product.get('precio')}
+🏷️  *Código:* ${product['COD. HYPNO']}
+👓  *Modelo:* ${product['marca']} ${product['modelo']}
+🎨  *Color:* ${product['color']}
+📦  *Stock:* ${product['cantidad']} unidades
+💲  *Precio:* $${product['precio']}
         `;
       } else {
         responseMessage = "❌ *Producto no encontrado.*\n\nVerificá el código e intentá nuevamente.";
