@@ -9,10 +9,10 @@ app.use(express.urlencoded({ extended: true }));
 const SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
 const doc = new GoogleSpreadsheet(SHEETS_ID);
 
-// Función para buscar en una hoja específica
+// Función para buscar en una hoja específica (VERSIÓN CORREGIDA)
 async function searchInSheet(sheetName, code) {
   try {
-    // AUTENTICACIÓN CON LA CUENTA DE SERVICIO
+    // AUTENTICACIÓN CON LA CUENTA DE SERVICIO - FORMA CORRECTA
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
     await doc.useServiceAccountAuth(credentials);
     
@@ -24,6 +24,17 @@ async function searchInSheet(sheetName, code) {
     }
     const rows = await sheet.getRows();
 
+    // Buscar el código en la columna 'cod.hypno'
+    const foundRow = rows.find(row => {
+      const rowCode = row.get('cod.hypno');
+      return rowCode && rowCode.toLowerCase().trim() === code.toLowerCase().trim();
+    });
+    return foundRow;
+  } catch (error) {
+    console.error('Error buscando en Sheet:', error);
+    return null;
+  }
+}
     // Buscar el código en la columna 'cod.hypno'
     const foundRow = rows.find(row => {
       const rowCode = row.get('cod.hypno');
