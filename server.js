@@ -5,17 +5,13 @@ const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 
-// Configuración de Google Sheets
-const SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
-
-// Función para buscar en una hoja específica (VERSIÓN 100% ACTUALIZADA)
+// Función para buscar en una hoja específica (VERSIÓN 3.3.0)
 async function searchInSheet(sheetName, code) {
   try {
-    // AUTENTICACIÓN NUEVA - FORMA CORRECTA
-    const doc = new GoogleSpreadsheet(SHEETS_ID);
+    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
     
-    // Autenticación con la cuenta de servicio
+    // AUTENTICACIÓN PARA VERSIÓN 3.3.0 - FORMA CORRECTA
     await doc.useServiceAccountAuth(credentials);
     
     await doc.loadInfo();
@@ -74,12 +70,14 @@ Elige una opción:
   } else if (incomingMessage.toLowerCase().startsWith('#stock ')) {
     const code = incomingMessage.split(' ')[1];
     if (!code) {
-      responseMessage = "❌ Por favor, escribí un código después de #stock. Ejemplo: #stock RB123";
+      responseMessage = "❌ Por favor, escribí un código después de #stock. Ejemplo: #stock AC-269";
     } else {
-      console.log("DEBUG - Buscando en Hoja:", process.env.SHEETS_ARMAZONES);
+      // Usamos el nombre de la hoja de las variables de entorno
+      const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK DE ARMAZONES 1';
+      console.log("DEBUG - Buscando en Hoja:", sheetName);
       console.log("DEBUG - Buscando Código:", code);
       
-      const product = await searchInSheet(process.env.SHEETS_ARMAZONES, code);
+      const product = await searchInSheet(sheetName, code);
       if (product) {
         responseMessage = `
 🏷️  *Código:* ${product.get('COD. HYPNO')}
