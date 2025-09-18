@@ -12,13 +12,23 @@ const doc = new GoogleSpreadsheet(SHEETS_ID);
 // Función para buscar en una hoja específica
 async function searchInSheet(sheetName, code) {
   try {
-    await doc.useServiceAccountAuth(require('./credentials.json')); // Usaremos auth más simple luego
+    // AUTENTICACIÓN CON LA CUENTA DE SERVICIO
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    await doc.useServiceAccountAuth(credentials);
+    
     await doc.loadInfo();
     const sheet = doc.sheetsByTitle[sheetName];
+    if (!sheet) {
+      console.error(`No se encontró la hoja: ${sheetName}`);
+      return null;
+    }
     const rows = await sheet.getRows();
 
     // Buscar el código en la columna 'cod.hypno'
-    const foundRow = rows.find(row => row.get('cod.hypno')?.toLowerCase() === code.toLowerCase());
+    const foundRow = rows.find(row => {
+      const rowCode = row.get('cod.hypno');
+      return rowCode && rowCode.toLowerCase().trim() === code.toLowerCase().trim();
+    });
     return foundRow;
   } catch (error) {
     console.error('Error buscando en Sheet:', error);
@@ -41,7 +51,7 @@ app.post('/webhook', async (req, res) => {
 
 Elige una opción:
 
-1.  👁️ *Agendar Examen de la Vista* - Solicita tu turno.
+1.  👁️ *Control de Refracción* (Para usuarios con receta existente)
 2.  📦 *Consultar Stock* - Ver disponibilidad de armazones.
 3.  💰 *Consultar Precios* - Conoce nuestras promociones.
 4.  📍 *Dirección y Horarios* - Cómo llegar y cuando abrimos.
@@ -51,7 +61,13 @@ Elige una opción:
     `;
 
   } else if (incomingMessage.toLowerCase() === '1') {
-    responseMessage = "⏳ *Sistema de Agendamiento en Construcción* ⏳\n\nPróximamente podrás agendar tu examen de la vista directamente por aquí. Por ahora, te invitamos a llamarnos por teléfono para coordinar tu turno. ¡Gracias!";
+    responseMessage = `👁️  *¿Qué tipo de servicio necesitás?*
+
+1.  📋 *Control de Refracción* (Para usuarios con receta existente)
+2.  🔍 *Adaptación de Lentes de Contacto* (Aprendé a usarlos por primera vez)
+3.  🎯 *Consulta de Armazones* (Asesoramiento para elegir tu modelo)
+
+*Respondé con el número de la opción.*`;
 
   } else if (incomingMessage.toLowerCase().startsWith('#stock ')) {
     // Comando: #stock COD123
@@ -59,8 +75,23 @@ Elige una opción:
     if (!code) {
       responseMessage = "❌ Por favor, escribí un código después de #stock. Ejemplo: #stock RB123";
     } else {
-      responseMessage = "🔍 *Buscando en el stock...* 🔍\n\n(Esta función está en desarrollo. Pronto tendrás la info al instante)";
-      // Aquí integraré la búsqueda en el Sheets luego
+      // --- DEBUG: Ver qué está buscando ---
+      console.log("DEBUG - Buscando en Hoja:", process.env.SHEETS_ARMAZONES);
+      console.log("DEBUG - Buscando Código:", code);
+      // -----------------------------------
+      // ¡BUSQUEDA REAL EN EL SHEET!
+      const product = await searchInSheet(process.env.SHEETS_ARMAZONES, code);
+      if (product) {
+        responseMessage = `
+🏷️  *Código:* ${product.get('cod.hypno')}
+👓  *Modelo:* ${product.get('marca')} ${product.get('modelo')}
+🎨  *Color:* ${product.get('color')}
+📦  *Stock:* ${product.get('cantidad')} unidades
+💲  *Precio:* $${product.get('precio')}
+        `;
+      } else {
+        responseMessage = "❌ *Producto no encontrado.*\n\nVerificá el código e intentá nuevamente.";
+      }
     }
 
   } else if (incomingMessage.toLowerCase() === '3') {
