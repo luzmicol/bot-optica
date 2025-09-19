@@ -5,12 +5,47 @@ const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 
-// ==================== FUNCIÓN OPENAI (GPT-4.1-mini) ====================
+// ==================== FUNCIÓN PARA OBTENER MARCAS ÚNICAS ====================
+async function obtenerMarcasUnicas() {
+  try {
+    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    
+    await doc.useServiceAccountAuth(credentials);
+    await doc.loadInfo();
+
+    const sheet = doc.sheetsByTitle[process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1'];
+    if (!sheet) return [];
+    
+    await sheet.loadHeaderRow(3);
+    const rows = await sheet.getRows();
+    
+    // Extraer todas las marcas únicas (sin repetir)
+    const marcas = new Set();
+    rows.forEach(row => {
+      const marca = row['Marca'];
+      if (marca && marca.trim() !== '') {
+        marcas.add(marca.trim());
+      }
+    });
+    
+    return Array.from(marcas).sort(); // Convertir Set a Array y ordenar
+  } catch (error) {
+    console.error('Error obteniendo marcas:', error);
+    return [];
+  }
+}
+
+// ==================== FUNCIÓN OPENAI (GPT-4o-mini) ====================
 async function consultarIA(prompt) {
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
   const url = 'https://api.openai.com/v1/chat/completions';
 
   try {
+    // Obtener las marcas REALES del sheet
+    const marcasReales = await obtenerMarcasUnicas();
+    const marcasTexto = marcasReales.join(', ');
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -18,12 +53,19 @@ async function consultarIA(prompt) {
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4.1-mini',  // ← MODELO ACTUALIZADO
+        model: 'gpt-4o-mini',
         messages: [{
           role: 'user', 
-          content: `Eres un asistente de la óptica Hypnottica en Buenos Aires. Responde de manera breve y amable en español. Cliente pregunta: "${prompt}". Si no sabés algo, invitá al cliente a visitar el local en Serrano 684, Villa Crespo.`
+          content: `Eres un asistente de la óptica Hypnottica. 
+          INFORMACIÓN REAL ACTUALIZADA:
+          - Marcas disponibles: ${marcasTexto}
+          - Dirección: Serrano 684, Villa Crespo, CABA
+          - Horarios: Lunes a Sábados 10:30-19:30
+          
+          Cliente pregunta: "${prompt}". 
+          Responde SOLO con información verificada. Si no sabés algo, decí la verdad.`
         }],
-        max_tokens: 200
+        max_tokens: 150
       })
     });
 
@@ -32,17 +74,16 @@ async function consultarIA(prompt) {
     if (data.choices && data.choices[0] && data.choices[0].message) {
       return data.choices[0].message.content;
     } else {
-      console.error("Respuesta inesperada de OpenAI:", JSON.stringify(data));
-      return "¡Hola! Somos Hypnottica. ¿En qué podemos ayudarte?";
+      return "¡Hola! Trabajamos con las mejores marcas del mercado. ¿Te interesa alguna en particular?";
     }
     
   } catch (error) {
     console.error("Error calling OpenAI:", error);
-    return "¡Hola! ¿Te gustaría saber sobre nuestro stock o agendar una cita?";
+    return "¡Hola! ¿Te gustaría saber sobre las marcas que manejamos?";
   }
 }
 
-// ==================== FUNCIÓN GOOGLE SHEETS ====================
+// ==================== FUNCIÓN BUSCAR EN SHEETS ====================
 async function searchInSheet(sheetName, code) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
