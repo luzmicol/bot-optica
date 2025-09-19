@@ -93,8 +93,8 @@ async function registrarInteraccion(senderId, mensaje, respuesta, efectiva = tru
   }
 }
 
-// ==================== FUNCIÓN PARA OBTENER TODOS LOS PRODUCTOS ====================
-async function obtenerTodosProductos() {
+// ==================== FUNCIÓN PARA OBTENER PRODUCTOS DE CUALQUIER HOJA ====================
+async function obtenerProductosDeSheet(sheetTitle) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
@@ -102,8 +102,11 @@ async function obtenerTodosProductos() {
     await doc.useServiceAccountAuth(credentials);
     await doc.loadInfo();
 
-    const sheet = doc.sheetsByTitle[process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1'];
-    if (!sheet) return [];
+    const sheet = doc.sheetsByTitle[sheetTitle];
+    if (!sheet) {
+      console.error(`No se encontró la hoja: '${sheetTitle}'`);
+      return [];
+    }
     
     await sheet.loadHeaderRow(3);
     const rows = await sheet.getRows();
@@ -111,22 +114,55 @@ async function obtenerTodosProductos() {
     // Extraer todos los productos con la estructura exacta de tu sheet
     const productos = [];
     rows.forEach(row => {
-      if (row['Marca'] && row['Marca'].trim() !== '') {
+      // Diferentes hojas pueden tener diferentes estructuras de columnas
+      const codigo = row['COD. HYPNO'] || row['Código'] || '';
+      const marca = row['Marca'] || '';
+      const modelo = row['Modelo'] || row['Producto'] || '';
+      const color = row['Color'] || '';
+      const precio = row['PRECIO'] || row['Precio'] || '';
+      const cantidad = row['Cantidad'] || row['Stock'] || '0';
+      
+      if (marca && marca.trim() !== '' || modelo && modelo.trim() !== '') {
         productos.push({
-          codigo: row['COD. HYPNO'] || '',
-          marca: row['Marca'] || '',
-          sol_receta: row['Sol/Receta'] || '',
-          modelo: row['Modelo'] || '',
-          color: row['Color'] || '',
-          precio: row['PRECIO'] || '',
-          cantidad: row['Cantidad'] || '0'
+          codigo,
+          marca,
+          modelo,
+          color,
+          precio,
+          cantidad,
+          categoria: sheetTitle
         });
       }
     });
     
     return productos;
   } catch (error) {
-    console.error('Error obteniendo productos:', error);
+    console.error(`Error obteniendo productos de ${sheetTitle}:`, error);
+    return [];
+  }
+}
+
+// ==================== FUNCIÓN PARA OBTENER TODOS LOS PRODUCTOS ====================
+async function obtenerTodosProductos() {
+  try {
+    const sheets = [
+      process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1',
+      process.env.SHEETS_ACCESORIOS,
+      process.env.SHEETS_LC,
+      process.env.SHEETS_LIQUIDOS
+    ].filter(Boolean); // Filtrar hojas no definidas
+
+    let todosProductos = [];
+    
+    // Obtener productos de todas las hojas en paralelo
+    for (const sheet of sheets) {
+      const productos = await obtenerProductosDeSheet(sheet);
+      todosProductos = todosProductos.concat(productos);
+    }
+    
+    return todosProductos;
+  } catch (error) {
+    console.error('Error obteniendo todos los productos:', error);
     return [];
   }
 }
@@ -153,9 +189,9 @@ async function buscarPorDescripcion(descripcion) {
     
     const prompt = `Cliente busca: "${descripcion}".
 
-Productos disponibles en stock (formato: CODIGO|MARCA|MODELO|COLOR|PRECIO):
+Productos disponibles en stock (formato: CODIGO|MARCA|MODELO|COLOR|PRECIO|CATEGORIA):
 ${productosConStock.map(p => 
-  `${p.codigo}|${p.marca}|${p.modelo}|${p.color}|${p.precio}`
+  `${p.codigo}|${p.marca}|${p.modelo}|${p.color}|${p.precio}|${p.categoria}`
 ).join('\n')}
 
 INSTRUCCIONES CRÍTICAS:
@@ -164,6 +200,7 @@ INSTRUCCIONES CRÍTICAS:
 3. "wayfarer" = estilo cuadrado, grueso, clásico
 4. "redondo" = circular, ovalado, sin esquinas
 5. Si no hay coincidencia exacta, buscá ALGO SIMILAR
+6. Considerá la categoría (lentes de contacto, líquidos, accesorios, armazones)
 
 Analiza la descripción y selecciona los 3 productos que mejor coincidan. 
 Responde SOLO con los códigos separados por coma, en orden de relevancia.
@@ -233,7 +270,7 @@ async function consultarIA(prompt) {
 }
 
 // ==================== FUNCIÓN BUSCAR EN SHEETS ====================
-async function searchInSheet(sheetName, code) {
+async function searchInSheet(code) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
@@ -241,20 +278,34 @@ async function searchInSheet(sheetName, code) {
     await doc.useServiceAccountAuth(credentials);
     await doc.loadInfo();
 
-    const sheet = doc.sheetsByTitle[sheetName];
-    if (!sheet) {
-      console.error(`No se encontró la hoja: '${sheetName}'`);
-      return null;
-    }
+    // Buscar en todas las hojas definidas
+    const sheets = [
+      process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1',
+      process.env.SHEETS_ACCESORIOS,
+      process.env.SHEETS_LC,
+      process.env.SHEETS_LIQUIDOS
+    ].filter(Boolean); // Filtrar hojas no definidas
 
-    await sheet.loadHeaderRow(3);
-    const rows = await sheet.getRows();
+    for (const sheetTitle of sheets) {
+      const sheet = doc.sheetsByTitle[sheetTitle];
+      if (!sheet) continue;
+
+      await sheet.loadHeaderRow(3);
+      const rows = await sheet.getRows();
+      
+      const foundRow = rows.find(row => {
+        const rowCode = row['COD. HYPNO'] || row['Código'];
+        return rowCode && rowCode.toLowerCase().trim() === code.toLowerCase().trim();
+      });
+      
+      if (foundRow) {
+        // Añadir información de categoría
+        foundRow.categoria = sheetTitle;
+        return foundRow;
+      }
+    }
     
-    const foundRow = rows.find(row => {
-      const rowCode = row['COD. HYPNO'];
-      return rowCode && rowCode.toLowerCase().trim() === code.toLowerCase().trim();
-    });
-    return foundRow;
+    return null;
   } catch (error) {
     console.error('Error buscando en Sheet:', error);
     return null;
@@ -306,6 +357,23 @@ async function generarRespuestaVoz(texto) {
   }
 }
 
+// ==================== DETECTAR CATEGORÍA POR MENSAJE ====================
+function detectarCategoria(mensaje) {
+  const msg = mensaje.toLowerCase();
+  
+  if (msg.includes('lente de contacto') || msg.includes('lentilla') || msg.includes('lc')) {
+    return 'lentes de contacto';
+  } else if (msg.includes('liquido') || msg.includes('solución') || msg.includes('limpieza')) {
+    return 'líquidos';
+  } else if (msg.includes('accesorio') || msg.includes('estuche') || msg.includes('toallita')) {
+    return 'accesorios';
+  } else if (msg.includes('armazon') || msg.includes('marco') || msg.includes('montura')) {
+    return 'armazones';
+  }
+  
+  return null;
+}
+
 // ==================== PROCESAMIENTO PRINCIPAL DE MENSAJES ====================
 async function procesarMensaje(mensaje, contexto, senderId, nivelSentimiento) {
   const messageLower = mensaje.toLowerCase();
@@ -317,7 +385,7 @@ async function procesarMensaje(mensaje, contexto, senderId, nivelSentimiento) {
     contexto.paso = 0;
     
     const emoji = personalidad.emojis[Math.floor(Math.random() * personalidad.emojis.length)];
-    respuesta = `${emoji} ¡Hola! Soy ${personalidad.nombre}, tu asistente de *Hypnottica*. ¿En qué puedo ayudarte hoy? Puedes preguntarme por:\n\n• Stock de armazones\n• Precios\n• Agendar una cita\n• Nuestra ubicación y horarios`;
+    respuesta = `${emoji} ¡Hola! Soy ${personalidad.nombre}, tu asistente de *Hypnottica*. ¿En qué puedo ayudarte hoy? Puedes preguntarme por:\n\n• Stock de armazones\n• Lentes de contacto\n• Líquidos y soluciones\n• Accesorios\n• Precios\n• Agendar una cita\n• Nuestra ubicación y horarios`;
 
   // Buscar stock por código
   } else if (messageLower.startsWith('#stock ') || messageLower.startsWith('stock ') || 
@@ -336,20 +404,21 @@ async function procesarMensaje(mensaje, contexto, senderId, nivelSentimiento) {
     if (!code) {
       respuesta = "❌ Contame el código del modelo que te interesa, por ejemplo: \"AC-274\"";
     } else {
-      const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1';
-      const product = await searchInSheet(sheetName, code);
+      const product = await searchInSheet(code);
       
       if (product) {
+        const categoria = product.categoria || 'Producto';
         respuesta = `
-🏷️  *Código:* ${product['COD. HYPNO']}
-👓  *Modelo:* ${product['Marca']} ${product['Modelo']}
-🎨  *Color:* ${product['Color']}
-📦  *Stock:* ${product['Cantidad']} unidades
-💲  *Precio:* $${product['PRECIO']}
+🏷️  *Código:* ${product['COD. HYPNO'] || product['Código']}
+📦  *Categoría:* ${categoria}
+👓  *Modelo:* ${product['Marca'] || ''} ${product['Modelo'] || product['Producto'] || ''}
+🎨  *Color:* ${product['Color'] || 'N/A'}
+📊  *Stock:* ${product['Cantidad'] || product['Stock'] || '0'} unidades
+💲  *Precio:* $${product['PRECIO'] || product['Precio'] || 'N/A'}
         `;
         
         // Guardar en historial de consultas
-        contexto.datos.ultimaConsulta = product['COD. HYPNO'];
+        contexto.datos.ultimaConsulta = product['COD. HYPNO'] || product['Código'];
       } else {
         respuesta = "❌ *Producto no encontrado.*\n\nVerificá el código e intentá nuevamente. Podés pedirme que te ayude a buscar describiendo el modelo que querés.";
       }
@@ -360,7 +429,8 @@ async function procesarMensaje(mensaje, contexto, senderId, nivelSentimiento) {
              messageLower.includes('aviador') || messageLower.includes('wayfarer') || messageLower.includes('redondo') ||
              messageLower.includes('rectangular') || messageLower.includes('cuadrado') || messageLower.includes('angular') ||
              messageLower.includes('ray-ban') || messageLower.includes('oakley') || messageLower.includes('carter') ||
-             messageLower.includes('vulk') || messageLower.includes('estilo')) {
+             messageLower.includes('vulk') || messageLower.includes('estilo') || messageLower.includes('lente de contacto') ||
+             messageLower.includes('lentilla') || messageLower.includes('accesorio') || messageLower.includes('liquido')) {
     
     respuesta = "🔍 *Buscando en nuestro stock...* Un momento por favor.";
     const productosEncontrados = await buscarPorDescripcion(mensaje);
@@ -369,7 +439,7 @@ async function procesarMensaje(mensaje, contexto, senderId, nivelSentimiento) {
       respuesta = `🔍 *Encontré estas opciones para vos:*\n\n`;
       
       productosEncontrados.forEach((producto, index) => {
-        respuesta += `${index + 1}. *${producto.codigo}* - ${producto.marca} ${producto.modelo} ${producto.color} - $${producto.precio}\n`;
+        respuesta += `${index + 1}. *${producto.codigo}* - ${producto.marca} ${producto.modelo} ${producto.color} - $${producto.precio} (${producto.categoria})\n`;
       });
       
       respuesta += `\n*Escribí #stock [código] para más detalles de cada uno.*`;
@@ -444,6 +514,7 @@ INFORMACIÓN REAL ACTUALIZADA:
 - Dirección: Serrano 684, Villa Crespo, CABA
 - Horarios: Lunes a Sábados 10:30-19:30
 - Teléfono: 11 1234-5678
+- Categorías: Armazones, Lentes de contacto, Líquidos, Accesorios
 
 Contexto de la conversación: ${JSON.stringify(contexto)}
 
@@ -552,7 +623,13 @@ app.get('/status', (req, res) => {
     status: 'ok', 
     name: personalidad.nombre,
     version: '2.0',
-    features: ['memory', 'personality', 'sentiment-analysis', 'product-search']
+    features: ['memory', 'personality', 'sentiment-analysis', 'product-search'],
+    sheets: {
+      armazones: process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1',
+      accesorios: process.env.SHEETS_ACCESORIOS,
+      lentes_contacto: process.env.SHEETS_LC,
+      liquidos: process.env.SHEETS_LIQUIDOS
+    }
   });
 });
 
@@ -578,4 +655,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🤖 ${personalidad.nombre} escuchando en puerto ${PORT}`);
   console.log(`⭐ Características activadas: Memoria de conversación, Personalidad, Análisis de sentimiento`);
+  console.log(`📊 Hojas configuradas: ${process.env.SHEETS_ARMAZONES}, ${process.env.SHEETS_ACCESORIOS}, ${process.env.SHEETS_LC}, ${process.env.SHEETS_LIQUIDOS}`);
 });
