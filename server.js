@@ -7,27 +7,40 @@ app.use(express.urlencoded({ extended: true }));
 
 // ==================== FUNCIÓN GEMINI (IA) ====================
 async function consultarIA(prompt) {
-  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-  // URL CORRECTA para plan FREE - modelo gemini-pro
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const url = 'https://api.openai.com/v1/chat/completions';
 
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: `Eres un asistente útil de la óptica Hypnottica en Buenos Aires. Responde de manera breve y amable en español. Cliente pregunta: "${prompt}". Si no sabés algo, invitá al cliente a visitar el local en Serrano 684, Villa Crespo.`
-          }]
-        }]
+        model: 'gpt-3.5-turbo',
+        messages: [{
+          role: 'user', 
+          content: `Eres un asistente de la óptica Hypnottica en Buenos Aires. Responde de manera breve y amable en español. Cliente pregunta: "${prompt}". Si no sabés algo, invitá al cliente a visitar el local en Serrano 684, Villa Crespo.`
+        }],
+        max_tokens: 150
       })
     });
 
     const data = await response.json();
     
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+      return data.choices[0].message.content;
+    } else {
+      console.error("Respuesta inesperada de OpenAI:", JSON.stringify(data));
+      return "¡Hola! Somos Hypnottica. ¿En qué podemos ayudarte?";
+    }
+    
+  } catch (error) {
+    console.error("Error calling OpenAI:", error);
+    return "¡Hola! ¿Te gustaría saber sobre nuestro stock o agendar una cita?";
+  }
+}
     // --- VERIFICACIÓN MEJORADA ---
     if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
       return data.candidates[0].content.parts[0].text;
