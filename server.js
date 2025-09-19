@@ -70,10 +70,17 @@ ${productosConStock.map(p =>
   `${p.codigo}|${p.marca}|${p.modelo}|${p.color}|${p.precio}`
 ).join('\n')}
 
-Analiza la descripción del cliente y selecciona los 3 productos que mejor coincidan. 
-Responde SOLO con los códigos de los productos separados por coma, en orden de relevancia.
+INSTRUCCIONES CRÍTICAS:
+1. ENTENDÉ FORMAS: "rectangular" = cuadrado, angular, bordes rectos
+2. "aviador" = estilo piloto, doble puente, teja
+3. "wayfarer" = estilo cuadrado, grueso, clásico
+4. "redondo" = circular, ovalado, sin esquinas
+5. Si no hay coincidencia exacta, buscá ALGO SIMILAR
 
-Ejemplo de respuesta: "AC-123, XY-456, ZZ-789"`;
+Analiza la descripción y selecciona los 3 productos que mejor coincidan. 
+Responde SOLO con los códigos separados por coma, en orden de relevancia.
+
+Ejemplo: "AC-123, XY-456, ZZ-789"`;
 
     const respuestaIA = await consultarIA(prompt);
     
@@ -114,7 +121,7 @@ async function consultarIA(prompt) {
           content: prompt
         }],
         max_tokens: 150,
-        temperature: 0.3 // Más determinístico para búsquedas
+        temperature: 0.3
       })
     });
 
@@ -163,109 +170,122 @@ async function searchInSheet(sheetName, code) {
 
 // ==================== RUTA PRINCIPAL WHATSAPP ====================
 app.post('/webhook', async (req, res) => {
-  const incomingMessage = req.body.Body.trim();
-  const senderId = req.body.From;
-  console.log(`Mensaje de ${senderId}: ${incomingMessage}`);
+  // --- MANEJO DE ERRORES GLOBAL ---
+  try {
+    const incomingMessage = req.body.Body.trim();
+    const senderId = req.body.From;
+    console.log(`Mensaje de ${senderId}: ${incomingMessage}`);
 
-  let responseMessage = '';
-  const messageLower = incomingMessage.toLowerCase();
+    let responseMessage = '';
+    const messageLower = incomingMessage.toLowerCase();
 
-  // --- DETECCIÓN DE INTENCIONES NATURALES ---
-  
-  // Saludo inicial
-  if (messageLower.includes('hola') || messageLower === 'hi' || messageLower === '👋') {
-    responseMessage = `¡Hola! 👋 Soy tu asistente de *Hypnottica*. ¿En qué puedo ayudarte hoy? Puedes preguntarme por stock, precios o agendar una cita.`;
+    // --- DETECCIÓN DE INTENCIONES NATURALES ---
+    
+    // Saludo inicial
+    if (messageLower.includes('hola') || messageLower === 'hi' || messageLower === '👋') {
+      responseMessage = `¡Hola! 👋 Soy tu asistente de *Hypnottica*. ¿En qué puedo ayudarte hoy? Puedes preguntarme por stock, precios o agendar una cita.`;
 
-  // Buscar stock por código (con o sin #)
-  } else if (messageLower.startsWith('#stock ') || messageLower.startsWith('stock ') || /\b(stock|tenen|tienen|busco)\b.*\b([A-Za-z0-9\-]+)\b/.test(messageLower)) {
-    let code;
-    if (messageLower.startsWith('#stock ')) {
-      code = incomingMessage.split(' ')[1];
-    } else if (messageLower.startsWith('stock ')) {
-      code = incomingMessage.split(' ')[1];
-    } else {
-      const match = incomingMessage.match(/\b([A-Za-z0-9\-]+)\b/);
-      code = match ? match[1] : null;
-    }
+    // Buscar stock por código (con o sin #)
+    } else if (messageLower.startsWith('#stock ') || messageLower.startsWith('stock ') || /\b(stock|tenen|tienen|busco)\b.*\b([A-Za-z0-9\-]+)\b/.test(messageLower)) {
+      let code;
+      if (messageLower.startsWith('#stock ')) {
+        code = incomingMessage.split(' ')[1];
+      } else if (messageLower.startsWith('stock ')) {
+        code = incomingMessage.split(' ')[1];
+      } else {
+        const match = incomingMessage.match(/\b([A-Za-z0-9\-]+)\b/);
+        code = match ? match[1] : null;
+      }
 
-    if (!code) {
-      responseMessage = "❌ Contame el código del modelo que te interesa, por ejemplo: \"AC-274\"";
-    } else {
-      const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1';
-      console.log("Buscando código:", code);
-      
-      const product = await searchInSheet(sheetName, code);
-      if (product) {
-        responseMessage = `
+      if (!code) {
+        responseMessage = "❌ Contame el código del modelo que te interesa, por ejemplo: \"AC-274\"";
+      } else {
+        const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1';
+        console.log("Buscando código:", code);
+        
+        const product = await searchInSheet(sheetName, code);
+        if (product) {
+          responseMessage = `
 🏷️  *Código:* ${product['COD. HYPNO']}
 👓  *Modelo:* ${product['Marca']} ${product['Modelo']}
 🎨  *Color:* ${product['Color']}
 📦  *Stock:* ${product['Cantidad']} unidades
 💲  *Precio:* $${product['PRECIO']}
-        `;
-      } else {
-        responseMessage = "❌ *Producto no encontrado.*\n\nVerificá el código e intentá nuevamente.";
+          `;
+        } else {
+          responseMessage = "❌ *Producto no encontrado.*\n\nVerificá el código e intentá nuevamente.";
+        }
       }
-    }
 
-  // BÚSQUEDA INTELIGENTE POR DESCRIPCIÓN (NUEVA FUNCIÓN)
-  } else if (messageLower.includes('busco') || messageLower.includes('quiero') || messageLower.includes('tene') || 
-             messageLower.includes('aviador') || messageLower.includes('wayfarer') || messageLower.includes('redondo') ||
-             messageLower.includes('ray-ban') || messageLower.includes('oakley') || messageLower.includes('carter')) {
-    
-    responseMessage = "🔍 *Buscando en nuestro stock...* Un momento por favor.";
-    
-    const productosEncontrados = await buscarPorDescripcion(incomingMessage);
-    
-    if (productosEncontrados.length > 0) {
-      responseMessage = `🔍 *Encontré estas opciones para vos:*\n\n`;
+    // BÚSQUEDA INTELIGENTE POR DESCRIPCIÓN
+    } else if (messageLower.includes('busco') || messageLower.includes('quiero') || messageLower.includes('tene') || 
+               messageLower.includes('aviador') || messageLower.includes('wayfarer') || messageLower.includes('redondo') ||
+               messageLower.includes('rectangular') || messageLower.includes('cuadrado') || messageLower.includes('angular') ||
+               messageLower.includes('ray-ban') || messageLower.includes('oakley') || messageLower.includes('carter') ||
+               messageLower.includes('vulk')) {
       
-      productosEncontrados.forEach((producto, index) => {
-        responseMessage += `${index + 1}. *${producto.codigo}* - ${producto.marca} ${producto.modelo} ${producto.color} - $${producto.precio}\n`;
-      });
+      responseMessage = "🔍 *Buscando en nuestro stock...* Un momento por favor.";
       
-      responseMessage += `\n*Escribí #stock [código] para más detalles de cada uno.*`;
+      const productosEncontrados = await buscarPorDescripcion(incomingMessage);
+      
+      if (productosEncontrados.length > 0) {
+        responseMessage = `🔍 *Encontré estas opciones para vos:*\n\n`;
+        
+        productosEncontrados.forEach((producto, index) => {
+          responseMessage += `${index + 1}. *${producto.codigo}* - ${producto.marca} ${producto.modelo} ${producto.color} - $${producto.precio}\n`;
+        });
+        
+        responseMessage += `\n*Escribí #stock [código] para más detalles de cada uno.*`;
+      } else {
+        responseMessage = "❌ *No encontré productos que coincidan.*\n\nProbá ser más específico o escribí el código del producto.";
+      }
+
+    // Agendar o turno
+    } else if (messageLower.includes('agendar') || messageLower.includes('turno') || messageLower.includes('hora') || messageLower.includes('cita')) {
+      responseMessage = `⏳ *Sistema de Agendamiento en Construcción* ⏳\n\nPróximamente podrás agendar tu turno directamente por aquí. Por ahora, te invitamos a llamarnos por teléfono para coordinar. ¡Gracias!`;
+
+    // Precios
+    } else if (messageLower.includes('precio') || messageLower.includes('cuesta') || messageLower.includes('sale')) {
+      responseMessage = "💎 *Tenemos precios para todos los presupuestos* 💎\n\nDesde armazones económicos hasta de primeras marcas. Contacta con un asesor para recibir una cotización personalizada sin compromiso.";
+
+    // Dirección u horarios
+    } else if (messageLower.includes('dirección') || messageLower.includes('donde') || messageLower.includes('ubic') || messageLower.includes('horario')) {
+      responseMessage = "📍 *Nuestra Dirección* 📍\n\n*HYPNOTTICA*\nSerrano 684, Villa Crespo. CABA.\n\n*Horarios:*\nLunes a Sábados: 10:30 - 19:30";
+
+    // Hablar con humano
+    } else if (messageLower.includes('humano') || messageLower.includes('persona') || messageLower.includes('asesor') || messageLower.includes('telefono')) {
+      responseMessage = "🔊 Te derivo con un asesor. Por favor, espera un momento...";
+
     } else {
-      responseMessage = "❌ *No encontré productos que coincidan.*\n\nProbá ser más específico o escribí el código del producto.";
+      // --- CONSULTA A IA PARA PREGUNTAS ABIERTAS ---
+      const marcasReales = await obtenerMarcasUnicas();
+      const marcasTexto = marcasReales.join(', ');
+
+      const promptIA = `Eres un asistente de la óptica Hypnottica. 
+      INFORMACIÓN REAL ACTUALIZADA:
+      - Marcas disponibles: ${marcasTexto}
+      - Dirección: Serrano 684, Villa Crespo, CABA
+      - Horarios: Lunes a Sábados 10:30-19:30
+      
+      Cliente pregunta: "${incomingMessage}". 
+      Responde SOLO con información verificada. Si no sabés algo, decí la verdad.`;
+
+      responseMessage = await consultarIA(promptIA);
     }
 
-  // Agendar o turno
-  } else if (messageLower.includes('agendar') || messageLower.includes('turno') || messageLower.includes('hora') || messageLower.includes('cita')) {
-    responseMessage = `⏳ *Sistema de Agendamiento en Construcción* ⏳\n\nPróximamente podrás agendar tu turno directamente por aquí. Por ahora, te invitamos a llamarnos por teléfono para coordinar. ¡Gracias!`;
-
-  // Precios
-  } else if (messageLower.includes('precio') || messageLower.includes('cuesta') || messageLower.includes('sale')) {
-    responseMessage = "💎 *Tenemos precios para todos los presupuestos* 💎\n\nDesde armazones económicos hasta de primeras marcas. Contacta con un asesor para recibir una cotización personalizada sin compromiso.";
-
-  // Dirección u horarios
-  } else if (messageLower.includes('dirección') || messageLower.includes('donde') || messageLower.includes('ubic') || messageLower.includes('horario')) {
-    responseMessage = "📍 *Nuestra Dirección* 📍\n\n*HYPNOTTICA*\nSerrano 684, Villa Crespo. CABA.\n\n*Horarios:*\nLunes a Sábados: 10:30 - 19:30";
-
-  // Hablar con humano
-  } else if (messageLower.includes('humano') || messageLower.includes('persona') || messageLower.includes('asesor') || messageLower.includes('telefono')) {
-    responseMessage = "🔊 Te derivo con un asesor. Por favor, espera un momento...";
-
-  } else {
-    // --- CONSULTA A IA PARA PREGUNTAS ABIERTAS ---
-    const marcasReales = await obtenerMarcasUnicas();
-    const marcasTexto = marcasReales.join(', ');
-
-    const promptIA = `Eres un asistente de la óptica Hypnottica. 
-    INFORMACIÓN REAL ACTUALIZADA:
-    - Marcas disponibles: ${marcasTexto}
-    - Dirección: Serrano 684, Villa Crespo, CABA
-    - Horarios: Lunes a Sábados 10:30-19:30
+    const twiml = new twilio.twiml.MessagingResponse();
+    twiml.message(responseMessage);
+    res.writeHead(200, { 'Content-Type': 'text/xml' });
+    res.end(twiml.toString());
     
-    Cliente pregunta: "${incomingMessage}". 
-    Responde SOLO con información verificada. Si no sabés algo, decí la verdad.`;
-
-    responseMessage = await consultarIA(promptIA);
+  } catch (error) {
+    console.error('Error grave en el servidor:', error);
+    // Aunque falle todo, respondemos SOMETHING a Twilio
+    const twiml = new twilio.twiml.MessagingResponse();
+    twiml.message('⚠️ Estoy teniendo problemas técnicos momentáneos. Por favor, intentá de nuevo en un minuto.');
+    res.writeHead(200, { 'Content-Type': 'text/xml' });
+    res.end(twiml.toString());
   }
-
-  const twiml = new twilio.twiml.MessagingResponse();
-  twiml.message(responseMessage);
-  res.writeHead(200, { 'Content-Type': 'text/xml' });
-  res.end(twiml.toString());
 });
 
 // ==================== INICIO SERVIDOR ====================
