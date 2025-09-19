@@ -8,8 +8,8 @@ app.use(express.urlencoded({ extended: true }));
 // ==================== FUNCIÓN GEMINI (IA) ====================
 async function consultarIA(prompt) {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-  // URL CORREGIDA - modelo correcto y API version estable
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+  // URL CORRECTA para plan FREE - modelo gemini-pro
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
 
   try {
     const response = await fetch(url, {
@@ -28,11 +28,12 @@ async function consultarIA(prompt) {
 
     const data = await response.json();
     
-    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+    // --- VERIFICACIÓN MEJORADA ---
+    if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
       return data.candidates[0].content.parts[0].text;
     } else {
       console.error("Respuesta inesperada de Gemini:", JSON.stringify(data));
-      return "¡Hola! Somos Hypnottica. ¿En qué podemos ayudarte?";
+      return "¡Hola! Somos Hypnottica. Tenemos marcas como Ray-Ban, Oakley y más. ¿Te interesa algún modelo en particular?";
     }
     
   } catch (error) {
@@ -40,7 +41,6 @@ async function consultarIA(prompt) {
     return "¡Hola! ¿Te gustaría saber sobre nuestro stock o agendar una cita?";
   }
 }
-
 // ==================== FUNCIÓN GOOGLE SHEETS ====================
 async function searchInSheet(sheetName, code) {
   try {
