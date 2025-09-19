@@ -1,13 +1,13 @@
 {
-  "name": "bot-optica",
-  "version": "1.0.0",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "name": "hypnottica-bot",
+  "version": "2.0.0",
   "dependencies": {
     "express": "^4.18.2",
-    "twilio": "^4.20.0",
-    "google-spreadsheet": "^3.3.0"
+    "twilio": "^4.23.0",
+    "google-spreadsheet": "^4.1.1",
+    "redis": "^4.6.13"
+  },
+  "scripts": {
+    "start": "node index.js"
   }
 }
