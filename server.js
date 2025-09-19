@@ -5,43 +5,42 @@ const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 
-// Función para consultar a DeepSeek (IA)
+// ==================== FUNCIÓN GEMINI (IA) ====================
 async function consultarIA(prompt) {
-  const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-  const url = 'https://api.deepseek.com/v1/chat/completions';
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
 
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        max_tokens: 150
+        contents: [{
+          parts: [{
+            text: `Eres un asistente útil de la óptica Hypnottica en Buenos Aires. Responde de manera breve y amable en español. Cliente pregunta: "${prompt}". Si no sabés algo, invitá al cliente a visitar el local en Serrano 684, Villa Crespo.`
+          }]
+        }]
       })
     });
 
     const data = await response.json();
     
-    // --- CORRECCIÓN: Verificar si la respuesta tiene datos válidos ---
-    if (data.choices && data.choices.length > 0 && data.choices[0].message) {
-      return data.choices[0].message.content;
+    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+      return data.candidates[0].content.parts[0].text;
     } else {
-      console.error("Respuesta inesperada de DeepSeek:", data);
-      return "Lo siento, no pude procesar tu pregunta en este momento. ¿Podés intentarlo de nuevo?";
+      console.error("Respuesta inesperada de Gemini:", JSON.stringify(data));
+      return "¡Hola! Somos Hypnottica. ¿En qué podemos ayudarte?";
     }
     
   } catch (error) {
-    console.error("Error calling DeepSeek:", error);
-    return "Lo siento, estoy teniendo problemas técnicos. Por favor, intentá de nuevo más tarde.";
+    console.error("Error calling Gemini:", error);
+    return "¡Hola! ¿Te gustaría saber sobre nuestro stock o agendar una cita?";
   }
 }
 
-// Función para buscar en una hoja específica
+// ==================== FUNCIÓN GOOGLE SHEETS ====================
 async function searchInSheet(sheetName, code) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
@@ -70,7 +69,7 @@ async function searchInSheet(sheetName, code) {
   }
 }
 
-// Función principal que procesa los mensajes
+// ==================== RUTA PRINCIPAL WHATSAPP ====================
 app.post('/webhook', async (req, res) => {
   const incomingMessage = req.body.Body.trim();
   const senderId = req.body.From;
@@ -136,7 +135,7 @@ app.post('/webhook', async (req, res) => {
 
   } else {
     // --- CONSULTA A IA PARA PREGUNTAS ABIERTAS ---
-    responseMessage = await consultarIA(`Eres un asistente de la óptica Hypnottica. El cliente pregunta: "${incomingMessage}". Responde de manera helpful y profesional. Si no sabés algo, invitá al cliente a visitar el local o a agendar una cita. No inventes información sobre productos que no tienes confirmación.`);
+    responseMessage = await consultarIA(incomingMessage);
   }
 
   const twiml = new twilio.twiml.MessagingResponse();
@@ -145,6 +144,7 @@ app.post('/webhook', async (req, res) => {
   res.end(twiml.toString());
 });
 
+// ==================== INICIO SERVIDOR ====================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en puerto ${PORT}`);
