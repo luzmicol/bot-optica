@@ -5,7 +5,7 @@ const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 
-// ==================== FUNCIÓN GEMINI (IA) ====================
+// ==================== FUNCIÓN OPENAI (IA) ====================
 async function consultarIA(prompt) {
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
   const url = 'https://api.openai.com/v1/chat/completions';
@@ -41,19 +41,7 @@ async function consultarIA(prompt) {
     return "¡Hola! ¿Te gustaría saber sobre nuestro stock o agendar una cita?";
   }
 }
-    // --- VERIFICACIÓN MEJORADA ---
-    if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
-      return data.candidates[0].content.parts[0].text;
-    } else {
-      console.error("Respuesta inesperada de Gemini:", JSON.stringify(data));
-      return "¡Hola! Somos Hypnottica. Tenemos marcas como Ray-Ban, Oakley y más. ¿Te interesa algún modelo en particular?";
-    }
-    
-  } catch (error) {
-    console.error("Error calling Gemini:", error);
-    return "¡Hola! ¿Te gustaría saber sobre nuestro stock o agendar una cita?";
-  }
-}
+
 // ==================== FUNCIÓN GOOGLE SHEETS ====================
 async function searchInSheet(sheetName, code) {
   try {
@@ -148,8 +136,6 @@ app.post('/webhook', async (req, res) => {
     responseMessage = "🔊 Te derivo con un asesor. Por favor, espera un momento...";
 
   } else {
-    // --- DEBUG: Ver qué está pasando ---
-    console.log("DEBUG: No match con ninguna condición anterior, derivando a IA...");
     // --- CONSULTA A IA PARA PREGUNTAS ABIERTAS ---
     responseMessage = await consultarIA(incomingMessage);
   }
