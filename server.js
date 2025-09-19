@@ -5,7 +5,7 @@ const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 
-// ==================== FUNCIÓN OPENAI (IA) ====================
+// ==================== FUNCIÓN OPENAI (GPT-4.1-mini) ====================
 async function consultarIA(prompt) {
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
   const url = 'https://api.openai.com/v1/chat/completions';
@@ -18,12 +18,12 @@ async function consultarIA(prompt) {
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4.1-mini',  // ← MODELO ACTUALIZADO
         messages: [{
           role: 'user', 
           content: `Eres un asistente de la óptica Hypnottica en Buenos Aires. Responde de manera breve y amable en español. Cliente pregunta: "${prompt}". Si no sabés algo, invitá al cliente a visitar el local en Serrano 684, Villa Crespo.`
         }],
-        max_tokens: 150
+        max_tokens: 200
       })
     });
 
