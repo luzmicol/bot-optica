@@ -132,7 +132,17 @@ app.post('/webhook', async (req, res) => {
   // Hablar con humano
   } else if (messageLower.includes('humano') || messageLower.includes('persona') || messageLower.includes('asesor') || messageLower.includes('telefono')) {
     responseMessage = "🔊 Te derivo con un asesor. Por favor, espera un momento...";
+// ... (todo el código anterior)
 
+  } else if (messageLower.includes('humano') || messageLower.includes('persona') || messageLower.includes('asesor') || messageLower.includes('telefono')) {
+    responseMessage = "🔊 Te derivo con un asesor. Por favor, espera un momento...";
+
+  } else {
+    // --- DEBUG: Ver qué está pasando ---
+    console.log("No match con ninguna condición anterior, derivando a IA...");
+    // --- CONSULTA A IA PARA PREGUNTAS ABIERTAS ---
+    responseMessage = await consultarIA(incomingMessage);
+  }
   } else {
     // --- CONSULTA A IA PARA PREGUNTAS ABIERTAS ---
     responseMessage = await consultarIA(incomingMessage);
