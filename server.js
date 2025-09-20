@@ -100,7 +100,6 @@ async function registrarInteraccion(senderId, mensaje, respuesta, efectiva = tru
       
       await redisClient.setex(`historial:${senderId}`, 86400, JSON.stringify(parsedHistorial));
     }
-    // Si no hay Redis, no guardamos historial (es opcional)
   } catch (error) {
     console.error('Error registrando interacción:', error);
   }
@@ -110,9 +109,11 @@ async function registrarInteraccion(senderId, mensaje, respuesta, efectiva = tru
 async function obtenerProductosDeSheet(sheetTitle) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
-    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
     
+    // AUTENTICACIÓN CORREGIDA
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
     await doc.useServiceAccountAuth(credentials);
+    
     await doc.loadInfo();
 
     const sheet = doc.sheetsByTitle[sheetTitle];
@@ -223,9 +224,11 @@ async function consultarIA(prompt) {
 async function searchInSheet(code) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
-    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
     
+    // AUTENTICACIÓN CORREGIDA
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
     await doc.useServiceAccountAuth(credentials);
+    
     await doc.loadInfo();
 
     const sheets = [
@@ -308,7 +311,7 @@ Ejemplo: "AC-123, XY-456, ZZ-789"`;
 
 // ==================== ANÁLISIS DE SENTIMIENTO ====================
 async function analizarSentimiento(texto) {
-  if (!process.env.OPENAI_API_KEY) return 50; // Neutral si no hay API key
+  if (!process.env.OPENAI_API_KEY) return 50;
   
   const prompt = `Analiza el sentimiento del siguiente texto en español (0-100, donde 0 es muy negativo y 100 muy positivo): "${texto}". Responde solo con el número.`;
   
@@ -317,7 +320,7 @@ async function analizarSentimiento(texto) {
     const sentimiento = parseInt(respuesta);
     return isNaN(sentimiento) ? 50 : Math.max(0, Math.min(100, sentimiento));
   } catch (error) {
-    return 50; // Neutral por defecto
+    return 50;
   }
 }
 
