@@ -1,18 +1,41 @@
 {
   "name": "hypnottica-bot",
-  "version": "2.0.0",
+  "version": "3.0.0",
+  "description": "Bot de WhatsApp para Hypnottica Óptica - Asistente virtual inteligente",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "echo 'Build completed'"
+    "dev": "nodemon server.js",
+    "build": "echo 'Build completado'",
+    "test": "echo 'No hay tests configurados'"
   },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "optica",
+    "hypnottica",
+    "assistant",
+    "google-sheets",
+    "redis"
+  ],
+  "author": "Hypnottica Óptica",
+  "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
     "twilio": "^4.23.0",
-    "google-spreadsheet": "^3.3.0",
+    "google-spreadsheet": "^4.1.1",
     "redis": "^4.6.13"
   },
   "engines": {
-    "node": "18.x"
-  }
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tu-usuario/hypnottica-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tu-usuario/hypnottica-bot/issues"
+  },
+  "homepage": "https://github.com/tu-usuario/hypnottica-bot#readme"
 }
