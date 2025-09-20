@@ -314,25 +314,25 @@ async function consultarIA(prompt) {
         model: 'gpt-4o-mini',
         messages: [{
           role: 'user', 
-      content: prompt
-    }],
-    max_tokens: 150,
-    temperature: 0.3
-  })
-});
+          content: prompt
+        }],
+        max_tokens: 150,
+        temperature: 0.3
+      })
+    });
 
-const data = await response.json();
-
-if (data.choices && data.choices[0] && data.choices[0].message) {
-  return data.choices[0].message.content;
-} else {
-  return "";
-}
-
-} catch (error) {
-  console.error("Error calling OpenAI:", error);
-  return "";
-}
+    const data = await response.json();
+    
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+      return data.choices[0].message.content;
+    } else {
+      return "";
+    }
+    
+  } catch (error) {
+    console.error("Error calling OpenAI:", error);
+    return "";
+  }
 }
 
 // ==================== FUNCIÓN BUSCAR EN SHEETS ====================
@@ -647,117 +647,4 @@ async function procesarMensaje(mensaje, contexto, senderId) {
                `• Chequeo de que la graduación sea correcta\n\n` +
                `👁️  *Adaptación de lentes de contacto:*\n` +
                `• Enseñanza de colocación y remoción\n` +
-               `• Instrucciones de cuidado y limpieza\n` +
-               `• Para primeros usuarios\n\n` +
-               `⏰ *Horarios para adaptación LC:*\n` +
-               `• Hasta 1 hora antes del cierre (18:30)\n` +
-               `• Duración aproximada: 60-90 minutos\n\n` +
-               `📞 *Agendá tu cita al: 11 1234-5678*`;
-
-  // Marcas específicas
-  } else if (await detectarMarca(messageLower)) {
-    const marca = await detectarMarca(messageLower);
-    respuesta = `✅ *Sí, trabajamos con ${marca}* 👓\n\nTenemos varios modelos disponibles. ¿Buscás algo en particular de ${marca} o querés que te muestre opciones?`;
-
-  // Marcas disponibles
-  } else if (messageLower.includes('marca') || messageLower.includes('que tienen') || messageLower.includes('que marcas') ||
-             messageLower.includes('con que marcas')) {
-    
-    try {
-      const marcasReales = await obtenerMarcasReales();
-      if (marcasReales.length > 0) {
-        respuesta = `👓 *Marcas que trabajamos:*\n\n${marcasReales.map(m => `• ${m}`).join('\n')}\n\n¿Te interesa alguna en particular?`;
-      } else {
-        respuesta = "✅ Trabajamos con las mejores marcas: *Ray-Ban, Oakley, Vulk, Carter, Sarkany, Acuvue* y más. ¿Buscás alguna en particular?";
-      }
-    } catch (error) {
-      respuesta = "✅ Trabajamos con las mejores marcas: *Ray-Ban, Oakley, Vulk, Carter, Sarkany, Acuvue* y más. ¿Buscás alguna en particular?";
-    }
-
-  // Dirección u horarios
-  } else if (messageLower.includes('dirección') || messageLower.includes('donde') || messageLower.includes('ubic') ||
-             messageLower.includes('horario') || messageLower.includes('hora') || messageLower.includes('abren')) {
-    
-    respuesta = `📍 *HYPNOTTICA*\nSerrano 684, Villa Crespo. CABA.\n\n` +
-               `⏰ *Horarios de atención:*\n` +
-               `• ${horariosAtencion.regular}\n` +
-               `• Adaptación LC: ${horariosAtencion.adaptacionLC}\n\n` +
-               `📞 *Teléfono:* 11 1234-5678`;
-
-  // Precios
-  } else if (messageLower.includes('precio') || messageLower.includes('cuesta') || messageLower.includes('valor')) {
-    respuesta = "💎 *Tenemos precios para todos los presupuestos*\n\nDesde armazones económicos hasta primeras marcas. ¿Buscás algo en particular o querés que te recomiende según tu presupuesto?";
-
-  } else {
-    respuesta = "¿En qué puedo ayudarte? Puedo consultar stock, precios, marcas, obras sociales o darte información sobre nuestra óptica.";
-  }
-
-  return respuesta;
-}
-
-// ==================== RUTA PRINCIPAL WHATSAPP ====================
-app.post('/webhook', async (req, res) => {
-  try {
-    const incomingMessage = req.body.Body.trim();
-    const senderId = req.body.From;
-    console.log(`📩 Mensaje de ${senderId}: ${incomingMessage}`);
-
-    const contexto = await obtenerContextoUsuario(senderId);
-    const responseMessage = await procesarMensaje(incomingMessage, contexto, senderId);
-    await guardarContextoUsuario(senderId, contexto);
-    
-    const twiml = new twilio.twiml.MessagingResponse();
-    twiml.message(responseMessage);
-    res.writeHead(200, { 'Content-Type': 'text/xml' });
-    res.end(twiml.toString());
-    
-  } catch (error) {
-    console.error('Error en el servidor:', error);
-    const twiml = new twilio.twiml.MessagingResponse();
-    twiml.message('⚠️ Estoy teniendo problemas técnicos. Por favor, intentá de nuevo.');
-    res.writeHead(200, { 'Content-Type': 'text/xml' });
-    res.end(twiml.toString());
-  }
-});
-
-// ==================== RUTAS ADICIONALES ====================
-app.get('/status', async (req, res) => {
-  try {
-    const marcasReales = await obtenerMarcasReales();
-    const marcasLC = await obtenerMarcasLC();
-    const liquidos = await obtenerLiquidos();
-    
-    res.json({ 
-      status: 'ok', 
-      name: personalidad.nombre,
-      version: '3.0',
-      redis: redisClient ? 'conectado' : 'memoria volátil',
-      obras_sociales: obrasSociales,
-      marcas_armazones: marcasReales,
-      marcas_lentes_contacto: marcasLC,
-      liquidos: liquidos,
-      total_productos: marcasReales.length + marcasLC.length + liquidos.length
-    });
-  } catch (error) {
-    res.json({ 
-      status: 'ok', 
-      name: personalidad.nombre,
-      version: '3.0',
-      redis: redisClient ? 'conectado' : 'memoria volátil',
-      obras_sociales: obrasSociales
-    });
-  }
-});
-
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
-});
-
-// ==================== INICIO SERVIDOR ====================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🤖 ${personalidad.nombre} escuchando en puerto ${PORT}`);
-  console.log(`⭐ Bot v3.0 - Completo con todas las actualizaciones`);
-  console.log(`🏥 Obras sociales: ${obrasSociales.join(', ')}`);
-  console.log(`⏰ Horario adaptación LC: hasta 18:30`);
-  console.log(`👁️  Servicios: control refracción + adapt
+               `• Instrucciones de cuidado
