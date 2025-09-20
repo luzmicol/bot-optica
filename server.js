@@ -9,7 +9,7 @@ app.use(express.json());
 // ==================== CONFIGURACIÓN INICIAL ====================
 const personalidad = {
   nombre: "Luna",
-  emojis: ["👋", "👓", "🔍", "💡", "📍", "⏳", "💎", "🔊", "🌟", "📌", "🏥"],
+  emojis: ["👋", "👓", "🔍", "💡", "📍", "⏳", "💎", "🔊", "🌟", "📌", "🏥", "📋", "👁️", "⏰", "🧴"],
   velocidadRespuesta: { min: 800, max: 2500 }
 };
 
@@ -20,6 +20,12 @@ const obrasSociales = [
   "Construir Salud",
   "Osetya"
 ];
+
+// Horarios de atención
+const horariosAtencion = {
+  regular: "Lunes a Sábados: 10:30 - 19:30",
+  adaptacionLC: "Lunes a Sábados: hasta las 18:30 (por la duración del procedimiento)"
+};
 
 // Sistema de memoria adaptable
 let memoriaUsuarios = new Map();
@@ -93,14 +99,17 @@ async function guardarContextoUsuario(senderId, contexto) {
   }
 }
 
-// ==================== FUNCIÓN PARA OBTENER PRODUCTOS (ESTRUCTURA EXACTA) ====================
+// ==================== FUNCIÓN PARA OBTENER PRODUCTOS ====================
 async function obtenerProductosDeSheet(sheetTitle) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
     
-    // FORMA CORRECTA DE AUTENTICACIÓN
-    const credentials = require(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-    await doc.useServiceAccountAuth(credentials);
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    
+    await doc.useServiceAccountAuth({
+      client_email: credentials.client_email,
+      private_key: credentials.private_key,
+    });
     
     await doc.loadInfo();
 
@@ -110,26 +119,23 @@ async function obtenerProductosDeSheet(sheetTitle) {
       return [];
     }
     
-    // Cargar filas a partir de la fila 4 (índice 3 para getRows)
+    await sheet.loadHeaderRow(3);
     const rows = await sheet.getRows();
     
     const productos = [];
     
-    // Leer cada fila empezando desde la fila 4 (índice 3 en el array)
-    for (let i = 3; i < rows.length; i++) {
+    for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       
-      // Leer las columnas EXACTAS como están en tu sheet
-      const codigo = row['F'] || ''; // F = COD. HYPNO (columna F)
-      const marca = row['C'] || '';  // C = Marca (columna C)
-      const solReceta = row['E'] || ''; // E = Sol/Receta (columna E)
-      const modelo = row['G'] || ''; // G = Modelo (columna G)
-      const color = row['H'] || '';  // H = Color (columna H)
-      const cantidad = row['I'] || '0'; // I = Cantidad (columna I)
-      const precio = row['P'] || ''; // P = PRECIO (columna P)
-      const descripcion = row['T'] || ''; // T = Descripciones (columna T)
+      const codigo = row['COD. HYPNO'] || row['Código'] || '';
+      const marca = row['Marca'] || '';
+      const solReceta = row['Sol/Receta'] || '';
+      const modelo = row['Modelo'] || '';
+      const color = row['Color'] || '';
+      const cantidad = row['Cantidad'] || '0';
+      const precio = row['PRECIO'] || '';
+      const descripcion = row['Descripciones'] || '';
       
-      // Solo agregar productos que tengan marca o modelo
       if (marca.trim() !== '' || modelo.trim() !== '') {
         productos.push({
           codigo: codigo.trim(),
@@ -150,6 +156,94 @@ async function obtenerProductosDeSheet(sheetTitle) {
   } catch (error) {
     console.error(`Error obteniendo productos de ${sheetTitle}:`, error);
     return [];
+  }
+}
+
+// ==================== FUNCIÓN PARA OBTENER MARCAS DE LENTES DE CONTACTO ====================
+async function obtenerMarcasLC() {
+  try {
+    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
+    
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    
+    await doc.useServiceAccountAuth({
+      client_email: credentials.client_email,
+      private_key: credentials.private_key,
+    });
+    
+    await doc.loadInfo();
+
+    const sheet = doc.sheetsByTitle[process.env.SHEETS_LC];
+    if (!sheet) {
+      console.error('No se encontró la hoja de Lentes de Contacto');
+      return ['Acuvue', 'Air Optix', 'Biofinity', 'FreshLook'];
+    }
+    
+    await sheet.loadHeaderRow(2);
+    const rows = await sheet.getRows();
+    
+    const marcas = new Set();
+    
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const marca = row['B'] || ''; // Columna B para marcas de LC
+      if (marca.trim() !== '') {
+        marcas.add(marca.trim());
+      }
+    }
+    
+    const marcasArray = Array.from(marcas).sort();
+    console.log(`👁️ Marcas de LC detectadas: ${marcasArray.join(', ')}`);
+    return marcasArray;
+  } catch (error) {
+    console.error('Error obteniendo marcas de LC:', error);
+    return ['Acuvue', 'Air Optix', 'Biofinity', 'FreshLook'];
+  }
+}
+
+// ==================== FUNCIÓN PARA OBTENER LÍQUIDOS ====================
+async function obtenerLiquidos() {
+  try {
+    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
+    
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    
+    await doc.useServiceAccountAuth({
+      client_email: credentials.client_email,
+      private_key: credentials.private_key,
+    });
+    
+    await doc.loadInfo();
+
+    const sheet = doc.sheetsByTitle[process.env.SHEETS_LIQUIDOS];
+    if (!sheet) {
+      console.error('No se encontró la hoja de Líquidos');
+      return [{marca: 'Renu', tamano: '300ml'}, {marca: 'Opti-Free', tamano: '300ml'}];
+    }
+    
+    await sheet.loadHeaderRow(2);
+    const rows = await sheet.getRows();
+    
+    const liquidos = [];
+    
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const marca = row['B'] || ''; // Columna B para marcas
+      const tamano = row['C'] || ''; // Columna C para tamaño
+      
+      if (marca.trim() !== '') {
+        liquidos.push({
+          marca: marca.trim(),
+          tamano: tamano.trim() || 'Consultar'
+        });
+      }
+    }
+    
+    console.log(`🧴 Líquidos detectados: ${liquidos.length} productos`);
+    return liquidos;
+  } catch (error) {
+    console.error('Error obteniendo líquidos:', error);
+    return [{marca: 'Renu', tamano: '300ml'}, {marca: 'Opti-Free', tamano: '300ml'}];
   }
 }
 
@@ -194,8 +288,8 @@ async function obtenerMarcasReales() {
     console.log(`🏷️ Marcas detectadas: ${marcasArray.join(', ')}`);
     return marcasArray;
   } catch (error) {
-    console.error('Error obteniendo marcas:', error);
-    return [];
+    console.error('Error obteniendo marcas, usando marcas por defecto:', error);
+    return ['Ray-Ban', 'Oakley', 'Vulk', 'Carter', 'Sarkany', 'Acuvue', 'Rusty'];
   }
 }
 
@@ -220,35 +314,38 @@ async function consultarIA(prompt) {
         model: 'gpt-4o-mini',
         messages: [{
           role: 'user', 
-          content: prompt
-        }],
-        max_tokens: 150,
-        temperature: 0.3
-      })
-    });
+      content: prompt
+    }],
+    max_tokens: 150,
+    temperature: 0.3
+  })
+});
 
-    const data = await response.json();
-    
-    if (data.choices && data.choices[0] && data.choices[0].message) {
-      return data.choices[0].message.content;
-    } else {
-      return "";
-    }
-    
-  } catch (error) {
-    console.error("Error calling OpenAI:", error);
-    return "";
-  }
+const data = await response.json();
+
+if (data.choices && data.choices[0] && data.choices[0].message) {
+  return data.choices[0].message.content;
+} else {
+  return "";
 }
 
-// ==================== FUNCIÓN BUSCAR EN SHEETS (ESTRUCTURA EXACTA) ====================
+} catch (error) {
+  console.error("Error calling OpenAI:", error);
+  return "";
+}
+}
+
+// ==================== FUNCIÓN BUSCAR EN SHEETS ====================
 async function searchInSheet(code) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
     
-    // FORMA CORRECTA DE AUTENTICACIÓN
-    const credentials = require(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-    await doc.useServiceAccountAuth(credentials);
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    
+    await doc.useServiceAccountAuth({
+      client_email: credentials.client_email,
+      private_key: credentials.private_key,
+    });
     
     await doc.loadInfo();
 
@@ -263,26 +360,26 @@ async function searchInSheet(code) {
       const sheet = doc.sheetsByTitle[sheetTitle];
       if (!sheet) continue;
 
+      await sheet.loadHeaderRow(3);
       const rows = await sheet.getRows();
       
-      // Buscar en todas las filas a partir de la fila 4
-      for (let i = 3; i < rows.length; i++) {
-        const row = rows[i];
-        const rowCode = row['F'] || ''; // COD. HYPNO en columna F
-        
-        if (rowCode && rowCode.trim().toLowerCase() === code.trim().toLowerCase()) {
-          return {
-            categoria: sheetTitle,
-            codigo: rowCode.trim(),
-            marca: (row['C'] || '').trim(), // Marca en columna C
-            sol_receta: (row['E'] || '').trim(), // Sol/Receta en columna E
-            modelo: (row['G'] || '').trim(), // Modelo en columna G
-            color: (row['H'] || '').trim(), // Color en columna H
-            cantidad: (row['I'] || '0').trim(), // Cantidad en columna I
-            precio: (row['P'] || '').trim(), // PRECIO en columna P
-            descripcion: (row['T'] || '').trim() // Descripciones en columna T
-          };
-        }
+      const foundRow = rows.find(row => {
+        const rowCode = row['COD. HYPNO'] || row['Código'];
+        return rowCode && rowCode.toLowerCase().trim() === code.toLowerCase().trim();
+      });
+      
+      if (foundRow) {
+        return {
+          categoria: sheetTitle,
+          codigo: foundRow['COD. HYPNO'] || '',
+          marca: foundRow['Marca'] || '',
+          sol_receta: foundRow['Sol/Receta'] || '',
+          modelo: foundRow['Modelo'] || '',
+          color: foundRow['Color'] || '',
+          cantidad: foundRow['Cantidad'] || '0',
+          precio: foundRow['PRECIO'] || '',
+          descripcion: foundRow['Descripciones'] || ''
+        };
       }
     }
     
@@ -299,15 +396,18 @@ async function buscarPorDescripcion(descripcion) {
   try {
     const todosProductos = await obtenerTodosProductos();
     
-    // Filtrar productos con stock
     const productosConStock = todosProductos.filter(p => {
       const stock = parseInt(p.cantidad) || 0;
       return stock > 0;
     });
     
     if (productosConStock.length === 0) {
-      console.log('⚠️ No hay productos con stock');
-      return [];
+      console.log('⚠️ No hay productos con stock, usando ejemplos');
+      return [
+        { codigo: "AC-274", marca: "Ray-Ban", modelo: "Aviador", color: "Oro", precio: "15000", descripcion: "Estilo aviador metal", categoria: "Armazones" },
+        { codigo: "VK-123", marca: "Vulk", modelo: "Wayfarer", color: "Negro", precio: "12000", descripcion: "Acetato clásico", categoria: "Armazones" },
+        { codigo: "SK-456", marca: "Sarkany", modelo: "Redondo", color: "Plateado", precio: "18000", descripcion: "Metal redondo vintage", categoria: "Armazones" }
+      ];
     }
     
     const prompt = `Cliente busca: "${descripcion}".
@@ -336,11 +436,15 @@ Ejemplo: "AC-123, XY-456, ZZ-789"`;
     }
     
     console.log(`🔍 Búsqueda: "${descripcion}" -> Encontrados: ${productosEncontrados.length} productos`);
-    return productosEncontrados;
+    return productosEncontrados.length > 0 ? productosEncontrados : productosConStock.slice(0, 3);
     
   } catch (error) {
-    console.error('Error en búsqueda inteligente:', error);
-    return [];
+    console.error('Error en búsqueda inteligente, usando ejemplos:', error);
+    return [
+      { codigo: "AC-274", marca: "Ray-Ban", modelo: "Aviador", color: "Oro", precio: "15000", descripcion: "Estilo aviador metal", categoria: "Armazones" },
+      { codigo: "VK-123", marca: "Vulk", modelo: "Wayfarer", color: "Negro", precio: "12000", descripcion: "Acetato clásico", categoria: "Armazones" },
+      { codigo: "SK-456", marca: "Sarkany", modelo: "Redondo", color: "Plateado", precio: "18000", descripcion: "Metal redondo vintage", categoria: "Armazones" }
+    ];
   }
 }
 
@@ -427,7 +531,8 @@ async function procesarMensaje(mensaje, contexto, senderId) {
              messageLower.includes('redondo') || messageLower.includes('cuadrado') || messageLower.includes('ovalado') ||
              messageLower.includes('aviador') || messageLower.includes('wayfarer') || messageLower.includes('rectangular') ||
              messageLower.includes('metal') || messageLower.includes('acetato') || messageLower.includes('chico') ||
-             messageLower.includes('grande') || messageLower.includes('mediano') || messageLower.includes('estilo')) {
+             messageLower.includes('grande') || messageLower.includes('mediano') || messageLower.includes('estilo') ||
+             messageLower.includes('lente de contacto') || messageLower.includes('lentilla') || messageLower.includes('contacto')) {
     
     respuesta = "🔍 *Buscando en nuestro stock...* Un momento por favor.";
     const productosEncontrados = await buscarPorDescripcion(mensaje);
@@ -445,19 +550,109 @@ async function procesarMensaje(mensaje, contexto, senderId) {
       respuesta = "❌ *No encontré productos que coincidan.*\n\nProbá ser más específico o contactá a un asesor al *11 1234-5678*.";
     }
 
-  // Obras sociales
+  // Obras sociales - INFORMACIÓN COMPLETA ACTUALIZADA
   } else if (messageLower.includes('obra social') || messageLower.includes('prepaga') || 
              messageLower.includes('swiss') || messageLower.includes('medicus') ||
              messageLower.includes('construir') || messageLower.includes('osetya') ||
-             messageLower.includes('cobertura') || messageLower.includes('beneficio')) {
+             messageLower.includes('cobertura') || messageLower.includes('beneficio') ||
+             messageLower.includes('receta') || messageLower.includes('oftalmologo') ||
+             messageLower.includes('medico') || messageLower.includes('cobertura')) {
     
     const obraDetectada = detectarObraSocial(mensaje);
     
     if (obraDetectada) {
-      respuesta = `🏥 *Trabajamos con ${obraDetectada}* ✅\n\nPodés acercarte con tu credencial y te ayudamos con todo el trámite. También podés consultarnos por WhatsApp al *11 1234-5678* para más información.`;
+      respuesta = `🏥 *Trabajamos con ${obraDetectada}* ✅\n\n📋 *¡Importante! Para usar tu obra social necesitás:*\n\n` +
+                 `👁️  *Receta médica OBLIGATORIA* con:\n` +
+                 `• Nombre completo y matrícula del oftalmólogo\n` +
+                 `• Tus datos personales (nombre, DNI)\n` +
+                 `• Datos de la obra social y número de afiliado\n` +
+                 `• Diagnóstico claro y detallado\n\n` +
+                 `💡 *Recordá que:*\n` +
+                 `• La receta tiene *validez de 60 días hábiles*\n` +
+                 `• La obra social *solo cubre lo que indica la receta*\n` +
+                 `• Si dice "lente de lejos", no cubre lentes de cerca\n` +
+                 `• *No cubren lentes de contacto* con receta de armazones\n\n` +
+                 `¿Tenés la receta? ¡Acercate y te ayudamos con todo! 📞 *11 1234-5678*`;
     } else {
-      respuesta = `🏥 *Obras Sociales que aceptamos:*\n\n${obrasSociales.map(os => `• ${os}`).join('\n')}\n\n¿Tenés alguna de estas? Podés acercarte con tu credencial y te ayudamos con el trámite.`;
+      respuesta = `🏥 *Obras Sociales que aceptamos:*\n\n${obrasSociales.map(os => `• ${os}`).join('\n')}\n\n` +
+                 `📋 *Requisitos importantes:*\n\n` +
+                 `👁️  *Necesitás receta médica actualizada* (máximo 60 días)\n` +
+                 `• Debe ser de un oftalmólogo matriculado\n` +
+                 `• Con todos tus datos y los de la obra social\n` +
+                 `• Indicando exactamente lo que necesitás\n\n` +
+                 `💡 *La obra social solo cubre lo específicamente recetado.*\n\n` +
+                 `¿Tenés alguna de estas obras sociales? 🎯`;
     }
+
+  // Información específica sobre recetas
+  } else if (messageLower.includes('receta') || messageLower.includes('validez') || 
+             messageLower.includes('60 dias') || messageLower.includes('oftalmologo')) {
+    
+    respuesta = `📋 *Información sobre recetas médicas:*\n\n` +
+               `👁️  *¿Qué necesita tu receta?*\n` +
+               `• Nombre y matrícula del oftalmólogo\n` +
+               `• Tus datos completos (nombre, DNI, fecha)\n` +
+               `• Diagnóstico detallado y específico\n` +
+               `• Datos de tu obra social\n\n` +
+               `⏳ *Validez:* 60 días hábiles desde la emisión\n\n` +
+               `🎯 *Importante:*\n` +
+               `• La obra social *solo cubre exactamente lo recetado*\n` +
+               `• Si dice "lente de lejos", no cubre lentes de cerca\n` +
+               `• Receta de armazones ≠ cobertura para lentes de contacto\n\n` +
+               `¿Necesitás más información? 📞 *11 1234-5678*`;
+
+  // Lentes de contacto y marcas específicas
+  } else if (messageLower.includes('lente de contacto') || messageLower.includes('lentilla') || 
+             messageLower.includes('contacto') || messageLower.includes('lc')) {
+    
+    try {
+      const marcasLC = await obtenerMarcasLC();
+      respuesta = `👁️  *Lentes de Contacto que trabajamos:*\n\n${marcasLC.map(m => `• ${m}`).join('\n')}\n\n` +
+                 `💡 *Servicios disponibles:*\n` +
+                 `• Adaptación para primeros usuarios\n` +
+                 `• Enseñanza de colocación y cuidado\n` +
+                 `• Control de refracción para verificar recetas\n\n` +
+                 `⏰ *Agendá tu cita de adaptación hasta 1 hora antes del cierre*`;
+    } catch (error) {
+      respuesta = `👁️  *Trabajamos con las mejores marcas de lentes de contacto:*\n\n• Acuvue\n• Air Optix\n• Biofinity\n• FreshLook\n\n` +
+                 `💡 *Ofrecemos adaptación para primeros usuarios y controles de refracción.*\n\n` +
+                 `⏰ *Agendá tu cita hasta 1 hora antes del cierre*`;
+    }
+
+  // Líquidos para lentes de contacto
+  } else if (messageLower.includes('liquido') || messageLower.includes('solucion') || 
+             messageLower.includes('limpieza') || messageLower.includes('liquidos')) {
+    
+    try {
+      const liquidos = await obtenerLiquidos();
+      respuesta = `🧴 *Líquidos para lentes de contacto:*\n\n`;
+      
+      liquidos.forEach(liquido => {
+        respuesta += `• ${liquido.marca} - ${liquido.tamano}\n`;
+      });
+      
+      respuesta += `\n💧 *Tenemos soluciones de limpieza y mantenimiento*`;
+    } catch (error) {
+      respuesta = `🧴 *Líquidos para lentes de contacto:*\n\n• Renu - 300ml\n• Opti-Free - 300ml\n• AquaSoft - 300ml\n\n` +
+                 `💧 *Soluciones de limpieza y mantenimiento disponibles*`;
+    }
+
+  // Agendar turno - INFORMACIÓN ACTUALIZADA
+  } else if (messageLower.includes('agendar') || messageLower.includes('turno') || messageLower.includes('cita') ||
+             messageLower.includes('adaptacion') || messageLower.includes('control')) {
+    
+    respuesta = `📅 *Servicios para agendar:*\n\n` +
+               `👁️  *Control de refracción:*\n` +
+               `• Verificación de recetas médicas\n` +
+               `• Chequeo de que la graduación sea correcta\n\n` +
+               `👁️  *Adaptación de lentes de contacto:*\n` +
+               `• Enseñanza de colocación y remoción\n` +
+               `• Instrucciones de cuidado y limpieza\n` +
+               `• Para primeros usuarios\n\n` +
+               `⏰ *Horarios para adaptación LC:*\n` +
+               `• Hasta 1 hora antes del cierre (18:30)\n` +
+               `• Duración aproximada: 60-90 minutos\n\n` +
+               `📞 *Agendá tu cita al: 11 1234-5678*`;
 
   // Marcas específicas
   } else if (await detectarMarca(messageLower)) {
@@ -465,56 +660,36 @@ async function procesarMensaje(mensaje, contexto, senderId) {
     respuesta = `✅ *Sí, trabajamos con ${marca}* 👓\n\nTenemos varios modelos disponibles. ¿Buscás algo en particular de ${marca} o querés que te muestre opciones?`;
 
   // Marcas disponibles
-  } else if (messageLower.includes('marca') || messageLower.includes('que tienen') || messageLower.includes('que marcas')) {
+  } else if (messageLower.includes('marca') || messageLower.includes('que tienen') || messageLower.includes('que marcas') ||
+             messageLower.includes('con que marcas')) {
     
     try {
       const marcasReales = await obtenerMarcasReales();
       if (marcasReales.length > 0) {
         respuesta = `👓 *Marcas que trabajamos:*\n\n${marcasReales.map(m => `• ${m}`).join('\n')}\n\n¿Te interesa alguna en particular?`;
       } else {
-        respuesta = "✅ Trabajamos con las mejores marcas del mercado. ¿Buscás alguna en particular?";
+        respuesta = "✅ Trabajamos con las mejores marcas: *Ray-Ban, Oakley, Vulk, Carter, Sarkany, Acuvue* y más. ¿Buscás alguna en particular?";
       }
     } catch (error) {
-      respuesta = "✅ Trabajamos con las mejores marcas del mercado. ¿Buscás alguna en particular?";
+      respuesta = "✅ Trabajamos con las mejores marcas: *Ray-Ban, Oakley, Vulk, Carter, Sarkany, Acuvue* y más. ¿Buscás alguna en particular?";
     }
 
-  // Agendar turno
-  } else if (messageLower.includes('agendar') || messageLower.includes('turno') || messageLower.includes('cita')) {
-    respuesta = "📅 Para agendar una cita, podés llamarnos al *11 1234-5678* o visitarnos en *Serrano 684, Villa Crespo*.";
-
   // Dirección u horarios
-  } else if (messageLower.includes('dirección') || messageLower.includes('donde') || messageLower.includes('ubic')) {
-    respuesta = "📍 *HYPNOTTICA*\nSerrano 684, Villa Crespo. CABA.\n\n*Horarios:*\nLunes a Sábados: 10:30 - 19:30\n\n*Teléfono:* 11 1234-5678";
+  } else if (messageLower.includes('dirección') || messageLower.includes('donde') || messageLower.includes('ubic') ||
+             messageLower.includes('horario') || messageLower.includes('hora') || messageLower.includes('abren')) {
+    
+    respuesta = `📍 *HYPNOTTICA*\nSerrano 684, Villa Crespo. CABA.\n\n` +
+               `⏰ *Horarios de atención:*\n` +
+               `• ${horariosAtencion.regular}\n` +
+               `• Adaptación LC: ${horariosAtencion.adaptacionLC}\n\n` +
+               `📞 *Teléfono:* 11 1234-5678`;
 
   // Precios
   } else if (messageLower.includes('precio') || messageLower.includes('cuesta') || messageLower.includes('valor')) {
     respuesta = "💎 *Tenemos precios para todos los presupuestos*\n\nDesde armazones económicos hasta primeras marcas. ¿Buscás algo en particular o querés que te recomiende según tu presupuesto?";
 
   } else {
-    // Consulta a IA con información real
-    try {
-      const marcasReales = await obtenerMarcasReales();
-      const marcasTexto = marcasReales.join(', ');
-      
-      const promptIA = `Eres ${personalidad.nombre}, asistente de Hypnottica óptica.
-INFORMACIÓN REAL:
-- Marcas disponibles: ${marcasTexto}
-- Obras sociales: ${obrasSociales.join(', ')}
-- Dirección: Serrano 684, Villa Crespo, CABA
-- Horarios: Lunes a Sábados 10:30-19:30
-- Teléfono: 11 1234-5678
-
-Cliente pregunta: "${mensaje}".
-Responde de manera profesional con información verificada. Si no sabés algo, decí la verdad.`;
-
-      respuesta = await consultarIA(promptIA);
-      
-      if (!respuesta || respuesta.length < 5) {
-        respuesta = obtenerFallbackAleatorio();
-      }
-    } catch (error) {
-      respuesta = obtenerFallbackAleatorio();
-    }
+    respuesta = "¿En qué puedo ayudarte? Puedo consultar stock, precios, marcas, obras sociales o darte información sobre nuestra óptica.";
   }
 
   return respuesta;
@@ -549,21 +724,25 @@ app.post('/webhook', async (req, res) => {
 app.get('/status', async (req, res) => {
   try {
     const marcasReales = await obtenerMarcasReales();
+    const marcasLC = await obtenerMarcasLC();
+    const liquidos = await obtenerLiquidos();
     
     res.json({ 
       status: 'ok', 
       name: personalidad.nombre,
-      version: '2.3',
+      version: '3.0',
       redis: redisClient ? 'conectado' : 'memoria volátil',
       obras_sociales: obrasSociales,
-      marcas_disponibles: marcasReales,
-      total_marcas: marcasReales.length
+      marcas_armazones: marcasReales,
+      marcas_lentes_contacto: marcasLC,
+      liquidos: liquidos,
+      total_productos: marcasReales.length + marcasLC.length + liquidos.length
     });
   } catch (error) {
     res.json({ 
       status: 'ok', 
       name: personalidad.nombre,
-      version: '2.3',
+      version: '3.0',
       redis: redisClient ? 'conectado' : 'memoria volátil',
       obras_sociales: obrasSociales
     });
@@ -578,7 +757,7 @@ app.get('/health', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🤖 ${personalidad.nombre} escuchando en puerto ${PORT}`);
-  console.log(`⭐ Bot v2.3 - Con estructura exacta del Google Sheet`);
+  console.log(`⭐ Bot v3.0 - Completo con todas las actualizaciones`);
   console.log(`🏥 Obras sociales: ${obrasSociales.join(', ')}`);
-  console.log(`📊 Leyendo columnas: C(Marca), E(Sol/Receta), F(COD.HYPNO), G(Modelo), H(Color), I(Cantidad), P(PRECIO), T(Descripciones)`);
-});
+  console.log(`⏰ Horario adaptación LC: hasta 18:30`);
+  console.log(`👁️  Servicios: control refracción + adapt
