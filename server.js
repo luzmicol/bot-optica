@@ -93,12 +93,12 @@ async function guardarContextoUsuario(senderId, contexto) {
   }
 }
 
-// ==================== FUNCIÓN PARA OBTENER PRODUCTOS (CORREGIDA) ====================
+// ==================== FUNCIÓN PARA OBTENER PRODUCTOS (ESTRUCTURA EXACTA) ====================
 async function obtenerProductosDeSheet(sheetTitle) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
     
-    // FORMA CORRECTA DE AUTENTICACIÓN para la versión 3.3.0
+    // FORMA CORRECTA DE AUTENTICACIÓN
     const credentials = require(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
     await doc.useServiceAccountAuth(credentials);
     
@@ -110,32 +110,42 @@ async function obtenerProductosDeSheet(sheetTitle) {
       return [];
     }
     
+    // Cargar filas a partir de la fila 4 (índice 3 para getRows)
     const rows = await sheet.getRows();
     
     const productos = [];
-    rows.forEach(row => {
-      const codigo = row['COD. HYPNO'] || row['Código'] || '';
-      const marca = row['Marca'] || '';
-      const modelo = row['Modelo'] || row['Producto'] || '';
-      const color = row['Color'] || '';
-      const precio = row['PRECIO'] || row['Precio'] || '';
-      const cantidad = row['Cantidad'] || row['Stock'] || '0';
-      const descripcion = row['Descripciones'] || '';
+    
+    // Leer cada fila empezando desde la fila 4 (índice 3 en el array)
+    for (let i = 3; i < rows.length; i++) {
+      const row = rows[i];
       
-      if ((marca && marca.trim() !== '') || (modelo && modelo.trim() !== '') || (descripcion && descripcion.trim() !== '')) {
+      // Leer las columnas EXACTAS como están en tu sheet
+      const codigo = row['F'] || ''; // F = COD. HYPNO (columna F)
+      const marca = row['C'] || '';  // C = Marca (columna C)
+      const solReceta = row['E'] || ''; // E = Sol/Receta (columna E)
+      const modelo = row['G'] || ''; // G = Modelo (columna G)
+      const color = row['H'] || '';  // H = Color (columna H)
+      const cantidad = row['I'] || '0'; // I = Cantidad (columna I)
+      const precio = row['P'] || ''; // P = PRECIO (columna P)
+      const descripcion = row['T'] || ''; // T = Descripciones (columna T)
+      
+      // Solo agregar productos que tengan marca o modelo
+      if (marca.trim() !== '' || modelo.trim() !== '') {
         productos.push({
-          codigo,
-          marca,
-          modelo,
-          color,
-          precio,
-          cantidad,
-          descripcion,
+          codigo: codigo.trim(),
+          marca: marca.trim(),
+          sol_receta: solReceta.trim(),
+          modelo: modelo.trim(),
+          color: color.trim(),
+          cantidad: cantidad.trim(),
+          precio: precio.trim(),
+          descripcion: descripcion.trim(),
           categoria: sheetTitle
         });
       }
-    });
+    }
     
+    console.log(`✅ Obtenidos ${productos.length} productos de ${sheetTitle}`);
     return productos;
   } catch (error) {
     console.error(`Error obteniendo productos de ${sheetTitle}:`, error);
@@ -160,6 +170,7 @@ async function obtenerTodosProductos() {
       todosProductos = todosProductos.concat(productos);
     }
     
+    console.log(`📊 Total de productos en stock: ${todosProductos.length}`);
     return todosProductos;
   } catch (error) {
     console.error('Error obteniendo todos los productos:', error);
@@ -179,10 +190,12 @@ async function obtenerMarcasReales() {
       }
     });
     
-    return Array.from(marcas).sort();
+    const marcasArray = Array.from(marcas).sort();
+    console.log(`🏷️ Marcas detectadas: ${marcasArray.join(', ')}`);
+    return marcasArray;
   } catch (error) {
     console.error('Error obteniendo marcas:', error);
-    return ['Ray-Ban', 'Oakley', 'Vulk', 'Carter', 'Sarkany', 'Acuvue'];
+    return [];
   }
 }
 
@@ -228,7 +241,7 @@ async function consultarIA(prompt) {
   }
 }
 
-// ==================== FUNCIÓN BUSCAR EN SHEETS (CORREGIDA) ====================
+// ==================== FUNCIÓN BUSCAR EN SHEETS (ESTRUCTURA EXACTA) ====================
 async function searchInSheet(code) {
   try {
     const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID);
@@ -252,20 +265,28 @@ async function searchInSheet(code) {
 
       const rows = await sheet.getRows();
       
-      const foundRow = rows.find(row => {
-        const rowCode = row['COD. HYPNO'] || row['Código'];
-        return rowCode && rowCode.toLowerCase().trim() === code.toLowerCase().trim();
-      });
-      
-      if (foundRow) {
-        return {
-          categoria: sheetTitle,
-          descripcion: foundRow['Descripciones'] || '',
-          ...foundRow
-        };
+      // Buscar en todas las filas a partir de la fila 4
+      for (let i = 3; i < rows.length; i++) {
+        const row = rows[i];
+        const rowCode = row['F'] || ''; // COD. HYPNO en columna F
+        
+        if (rowCode && rowCode.trim().toLowerCase() === code.trim().toLowerCase()) {
+          return {
+            categoria: sheetTitle,
+            codigo: rowCode.trim(),
+            marca: (row['C'] || '').trim(), // Marca en columna C
+            sol_receta: (row['E'] || '').trim(), // Sol/Receta en columna E
+            modelo: (row['G'] || '').trim(), // Modelo en columna G
+            color: (row['H'] || '').trim(), // Color en columna H
+            cantidad: (row['I'] || '0').trim(), // Cantidad en columna I
+            precio: (row['P'] || '').trim(), // PRECIO en columna P
+            descripcion: (row['T'] || '').trim() // Descripciones en columna T
+          };
+        }
       }
     }
     
+    console.log(`❌ Código no encontrado: ${code}`);
     return null;
   } catch (error) {
     console.error('Error buscando en Sheet:', error);
@@ -278,15 +299,15 @@ async function buscarPorDescripcion(descripcion) {
   try {
     const todosProductos = await obtenerTodosProductos();
     
-    const productosConStock = todosProductos.filter(p => parseInt(p.cantidad) > 0);
+    // Filtrar productos con stock
+    const productosConStock = todosProductos.filter(p => {
+      const stock = parseInt(p.cantidad) || 0;
+      return stock > 0;
+    });
     
     if (productosConStock.length === 0) {
-      // Si no puede acceder a la sheet, dar opciones genéricas
-      return [
-        { codigo: "AC-274", marca: "Ray-Ban", modelo: "Aviador", color: "Oro", precio: "15000", categoria: "Armazones", descripcion: "Estilo aviador metal" },
-        { codigo: "VK-123", marca: "Vulk", modelo: "Wayfarer", color: "Negro", precio: "12000", categoria: "Armazones", descripcion: "Acetato clásico" },
-        { codigo: "SK-456", marca: "Sarkany", modelo: "Redondo", color: "Plateado", precio: "18000", categoria: "Armazones", descripcion: "Metal redondo vintage" }
-      ];
+      console.log('⚠️ No hay productos con stock');
+      return [];
     }
     
     const prompt = `Cliente busca: "${descripcion}".
@@ -314,16 +335,12 @@ Ejemplo: "AC-123, XY-456, ZZ-789"`;
       if (producto) productosEncontrados.push(producto);
     }
     
-    return productosEncontrados.length > 0 ? productosEncontrados : productosConStock.slice(0, 3);
+    console.log(`🔍 Búsqueda: "${descripcion}" -> Encontrados: ${productosEncontrados.length} productos`);
+    return productosEncontrados;
     
   } catch (error) {
-    console.error('Error en búsqueda inteligente, usando opciones genéricas');
-    // Opciones de respaldo si falla la búsqueda
-    return [
-      { codigo: "AC-274", marca: "Ray-Ban", modelo: "Aviador", color: "Oro", precio: "15000", categoria: "Armazones", descripcion: "Estilo aviador metal" },
-      { codigo: "VK-123", marca: "Vulk", modelo: "Wayfarer", color: "Negro", precio: "12000", categoria: "Armazones", descripcion: "Acetato clásico" },
-      { codigo: "SK-456", marca: "Sarkany", modelo: "Redondo", color: "Plateado", precio: "18000", categoria: "Armazones", descripcion: "Metal redondo vintage" }
-    ];
+    console.error('Error en búsqueda inteligente:', error);
+    return [];
   }
 }
 
@@ -351,15 +368,20 @@ function detectarObraSocial(mensaje) {
 }
 
 // ==================== DETECTAR MARCA EN MENSAJE ====================
-function detectarMarca(mensaje) {
-  const msg = mensaje.toLowerCase();
-  const marcasConocidas = ['ray-ban', 'oakley', 'vulk', 'carter', 'sarkany', 'acuvue'];
-  
-  const marcaDetectada = marcasConocidas.find(marca => 
-    msg.includes(marca)
-  );
-  
-  return marcaDetectada ? marcaDetectada.charAt(0).toUpperCase() + marcaDetectada.slice(1) : null;
+async function detectarMarca(mensaje) {
+  try {
+    const marcasReales = await obtenerMarcasReales();
+    const msg = mensaje.toLowerCase();
+    
+    const marcaDetectada = marcasReales.find(marca => 
+      msg.includes(marca.toLowerCase())
+    );
+    
+    return marcaDetectada || null;
+  } catch (error) {
+    console.error('Error detectando marca:', error);
+    return null;
+  }
 }
 
 // ==================== PROCESAMIENTO PRINCIPAL DE MENSAJES ====================
@@ -384,14 +406,16 @@ async function procesarMensaje(mensaje, contexto, senderId) {
       
       if (product) {
         const descripcion = product.descripcion ? `\n📝 *Descripción:* ${product.descripcion}` : '';
+        const solReceta = product.sol_receta ? `\n👁️  *Tipo:* ${product.sol_receta}` : '';
         
         respuesta = `
-🏷️  *Código:* ${product['COD. HYPNO'] || product['Código'] || 'N/A'}
+🏷️  *Código:* ${product.codigo || 'N/A'}
 📦  *Categoría:* ${product.categoria}
-👓  *Modelo:* ${product['Marca'] || ''} ${product['Modelo'] || product['Producto'] || ''}
-🎨  *Color:* ${product['Color'] || 'N/A'}${descripcion}
-📊  *Stock:* ${product['Cantidad'] || product['Stock'] || '0'} unidades
-💲  *Precio:* $${product['PRECIO'] || product['Precio'] || 'N/A'}
+👓  *Marca:* ${product.marca || ''}
+🔄  *Modelo:* ${product.modelo || ''}
+🎨  *Color:* ${product.color || 'N/A'}${solReceta}${descripcion}
+📊  *Stock:* ${product.cantidad || '0'} unidades
+💲  *Precio:* $${product.precio || 'N/A'}
         `;
       } else {
         respuesta = "❌ *Producto no encontrado.* Verificá el código o describime lo que buscás.";
@@ -436,8 +460,8 @@ async function procesarMensaje(mensaje, contexto, senderId) {
     }
 
   // Marcas específicas
-  } else if (detectarMarca(messageLower)) {
-    const marca = detectarMarca(messageLower);
+  } else if (await detectarMarca(messageLower)) {
+    const marca = await detectarMarca(messageLower);
     respuesta = `✅ *Sí, trabajamos con ${marca}* 👓\n\nTenemos varios modelos disponibles. ¿Buscás algo en particular de ${marca} o querés que te muestre opciones?`;
 
   // Marcas disponibles
@@ -448,10 +472,10 @@ async function procesarMensaje(mensaje, contexto, senderId) {
       if (marcasReales.length > 0) {
         respuesta = `👓 *Marcas que trabajamos:*\n\n${marcasReales.map(m => `• ${m}`).join('\n')}\n\n¿Te interesa alguna en particular?`;
       } else {
-        respuesta = "✅ Trabajamos con las mejores marcas: *Ray-Ban, Oakley, Vulk, Carter, Sarkany, Acuvue* y más. ¿Buscás alguna en particular?";
+        respuesta = "✅ Trabajamos con las mejores marcas del mercado. ¿Buscás alguna en particular?";
       }
     } catch (error) {
-      respuesta = "✅ Trabajamos con las mejores marcas: *Ray-Ban, Oakley, Vulk, Carter, Sarkany, Acuvue* y más. ¿Buscás alguna en particular?";
+      respuesta = "✅ Trabajamos con las mejores marcas del mercado. ¿Buscás alguna en particular?";
     }
 
   // Agendar turno
@@ -467,7 +491,30 @@ async function procesarMensaje(mensaje, contexto, senderId) {
     respuesta = "💎 *Tenemos precios para todos los presupuestos*\n\nDesde armazones económicos hasta primeras marcas. ¿Buscás algo en particular o querés que te recomiende según tu presupuesto?";
 
   } else {
-    respuesta = "¿En qué puedo ayudarte? Puedo consultar stock, precios, marcas, obras sociales o darte información sobre nuestra óptica.";
+    // Consulta a IA con información real
+    try {
+      const marcasReales = await obtenerMarcasReales();
+      const marcasTexto = marcasReales.join(', ');
+      
+      const promptIA = `Eres ${personalidad.nombre}, asistente de Hypnottica óptica.
+INFORMACIÓN REAL:
+- Marcas disponibles: ${marcasTexto}
+- Obras sociales: ${obrasSociales.join(', ')}
+- Dirección: Serrano 684, Villa Crespo, CABA
+- Horarios: Lunes a Sábados 10:30-19:30
+- Teléfono: 11 1234-5678
+
+Cliente pregunta: "${mensaje}".
+Responde de manera profesional con información verificada. Si no sabés algo, decí la verdad.`;
+
+      respuesta = await consultarIA(promptIA);
+      
+      if (!respuesta || respuesta.length < 5) {
+        respuesta = obtenerFallbackAleatorio();
+      }
+    } catch (error) {
+      respuesta = obtenerFallbackAleatorio();
+    }
   }
 
   return respuesta;
@@ -478,7 +525,7 @@ app.post('/webhook', async (req, res) => {
   try {
     const incomingMessage = req.body.Body.trim();
     const senderId = req.body.From;
-    console.log(`Mensaje de ${senderId}: ${incomingMessage}`);
+    console.log(`📩 Mensaje de ${senderId}: ${incomingMessage}`);
 
     const contexto = await obtenerContextoUsuario(senderId);
     const responseMessage = await procesarMensaje(incomingMessage, contexto, senderId);
@@ -499,14 +546,28 @@ app.post('/webhook', async (req, res) => {
 });
 
 // ==================== RUTAS ADICIONALES ====================
-app.get('/status', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    name: personalidad.nombre,
-    version: '2.2',
-    redis: redisClient ? 'conectado' : 'memoria volátil',
-    obras_sociales: obrasSociales
-  });
+app.get('/status', async (req, res) => {
+  try {
+    const marcasReales = await obtenerMarcasReales();
+    
+    res.json({ 
+      status: 'ok', 
+      name: personalidad.nombre,
+      version: '2.3',
+      redis: redisClient ? 'conectado' : 'memoria volátil',
+      obras_sociales: obrasSociales,
+      marcas_disponibles: marcasReales,
+      total_marcas: marcasReales.length
+    });
+  } catch (error) {
+    res.json({ 
+      status: 'ok', 
+      name: personalidad.nombre,
+      version: '2.3',
+      redis: redisClient ? 'conectado' : 'memoria volátil',
+      obras_sociales: obrasSociales
+    });
+  }
 });
 
 app.get('/health', (req, res) => {
@@ -517,6 +578,7 @@ app.get('/health', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🤖 ${personalidad.nombre} escuchando en puerto ${PORT}`);
-  console.log(`⭐ Bot v2.2 - Con descripciones y obras sociales`);
+  console.log(`⭐ Bot v2.3 - Con estructura exacta del Google Sheet`);
   console.log(`🏥 Obras sociales: ${obrasSociales.join(', ')}`);
+  console.log(`📊 Leyendo columnas: C(Marca), E(Sol/Receta), F(COD.HYPNO), G(Modelo), H(Color), I(Cantidad), P(PRECIO), T(Descripciones)`);
 });
