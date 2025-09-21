@@ -469,24 +469,102 @@ async function procesarMensaje(mensaje, contexto, senderId) {
       respuesta = "👓 *Trabajamos con diversas marcas de calidad.*\n\n¿Buscás alguna marca específica?";
     }
 
-  // Obras sociales
-  } else if (messageLower.includes('obra social') || messageLower.includes('prepaga') || messageLower.includes('swiss') || messageLower.includes('medicus')) {
-    const obraDetectada = detectarObraSocial(mensaje);
-    if (obraDetectada) {
-      respuesta = `🏥 *Trabajamos con ${obraDetectada}* ✅\n\n📋 *¡Importante! Para usar tu obra social necesitás:*\n\n👁️  *Receta médica OBLIGATORIA* con:\n• Nombre completo y matrícula del oftalmólogo\n• Tus datos personales (nombre, DNI)\n• Datos de la obra social y número de afiliado\n• Diagnóstico claro y detallado\n\n💡 *Recordá que:*\n• La receta tiene *validez de 60 días hábiles*\n• La obra social *solo cubre lo que indica la receta*\n• *No cubren lentes de contacto* con receta de armazones\n\n¿Tenés la receta? ¡Acercate y te ayudamos con todo! 📞 *11 1234-5678*`;
+  // Obras sociales - INFORMACIÓN COMPLETA ACTUALIZADA
+} else if (messageLower.includes('obra social') || messageLower.includes('prepaga') || 
+           messageLower.includes('swiss') || messageLower.includes('medicus') ||
+           messageLower.includes('construir') || messageLower.includes('osetya') ||
+           messageLower.includes('cobertura') || messageLower.includes('beneficio') ||
+           messageLower.includes('receta') || messageLower.includes('oftalmologo') ||
+           messageLower.includes('medico') || messageLower.includes('cobertura')) {
+  
+  const obraDetectada = detectarObraSocial(mensaje);
+  
+  if (obraDetectada) {
+    respuesta = `🏥 *Trabajamos con ${obraDetectada}* ✅\n\n📋 *¡Importante! Para usar tu obra social necesitás:*\n\n` +
+               `👁️  *Receta médica OBLIGATORIA* con:\n` +
+               `• Nombre completo y matrícula del oftalmólogo\n` +
+               `• Tus datos personales (nombre, DNI)\n` +
+               `• Datos de la obra social y número de afiliado\n` +
+               `• Diagnóstico claro y detallado\n\n` +
+               `💡 *Recordá que:*\n` +
+               `• La receta tiene *validez de 60 días hábiles*\n` +
+               `• La obra social *solo cubre lo que indica la receta*\n` +
+               `• Si dice "lente de lejos", no cubre lentes de cerca\n` +
+               `• *No cubren lentes de contacto* con receta de armazones\n\n` +
+               `¿Tenés la receta? ¡Acercate y te ayudamos con todo! 📞 *11 1234-5678*`;
+  } else {
+    // DETECTAR SI MENCIONÓ ALGUNA OBRA SOCIAL ESPECÍFICA
+    const obrasMencionadas = obrasSociales.filter(obra => 
+      messageLower.includes(obra.toLowerCase())
+    );
+    
+    if (obrasMencionadas.length > 0) {
+      // Si mencionó una obra social que no tenemos
+      respuesta = `❌ *No trabajamos con ${obrasMencionadas[0]} en este momento* 😔\n\n` +
+                 `👉 *Pero sí contamos con:*\n` +
+                 `• Precios competitivos\n` +
+                 `• Promos exclusivas\n` +
+                 `• Garantía en todos nuestros productos\n` +
+                 `• Posibilidad de financiar tu compra en cuotas\n\n` +
+                 `¿Querés que te asesoremos para que encuentres el lente ideal al mejor valor?`;
     } else {
-      respuesta = `🏥 *Obras Sociales que aceptamos:*\n\n${obrasSociales.map(os => `• ${os}`).join('\n')}\n\n📋 *Requisitos importantes:*\n\n👁️  *Necesitás receta médica actualizada* (máximo 60 días)\n• Debe ser de un oftalmólogo matriculado\n• Con todos tus datos y diagnóstico detallado\n• Con datos de tu obra social y número de afiliado\n\n¿Tenés alguna obra social en particular?`;
+      // Si solo pregunta en general
+      respuesta = `🏥 *Obras Sociales que aceptamos:*\n\n${obrasSociales.map(os => `• ${os}`).join('\n')}\n\n` +
+                 `📋 *Requisitos importantes:*\n\n` +
+                 `👁️  *Necesitás receta médica actualizada* (máximo 60 días)\n` +
+                 `• Debe ser de un oftalmólogo matriculado\n` +
+                 `• Con todos tus datos y diagnóstico detallado\n` +
+                 `• Con datos de tu obra social y número de afiliado\n\n` +
+                 `¿Tenés alguna obra social en particular?`;
     }
-
-  // Horarios de atención
-  } else if (messageLower.includes('horario') || messageLower.includes('hora') || messageLower.includes('cuándo') || messageLower.includes('abierto')) {
-    respuesta = `⏰ *Nuestros horarios de atención:*\n\n📅 ${horariosAtencion.regular}\n👁️  *Adaptación de lentes de contacto:* ${horariosAtencion.adaptacionLC}\n\n📍 *Dirección:* Av. Corrientes 1234, CABA\n📞 *Teléfono:* 11 1234-5678\n\n¿Necesitás agendar una cita?`;
-
-  // Lentes de contacto
-  } else if (messageLower.includes('lente de contacto') || messageLower.includes('lentilla') || messageLower.includes('contacto')) {
-    const marcasLC = await obtenerMarcasLC();
-    respuesta = `👁️  *Lentes de Contacto disponibles:*\n\n📋 *Marcas que trabajamos:*\n${marcasLC.map(m => `• ${m}`).join('\n')}\n\n💡 *Importante:* Necesitás receta oftalmológica actualizada\n⏰ *Adaptación:* ${horariosAtencion.adaptacionLC}\n\n¿Qué marca te interesa o ya usás alguna?`;
-
+  }
+// Dirección - SOLO DIRECCIÓN
+} else if (messageLower.includes('direccion') || messageLower.includes('dirección') ||
+           messageLower.includes('ubicacion') || messageLower.includes('ubicación') ||
+           messageLower.includes('donde estan') || messageLower.includes('dónde están') ||
+           messageLower.includes('local') || messageLower.includes('dire')) {
+  
+  respuesta = `📍 *Nuestra dirección:*\nSerrano 684, Villa Crespo, CABA\n\n` +
+             `¿Necesitás indicaciones para llegar?`;
+    
+  // Horarios de atención - SOLO HORARIOS REGULARES
+} else if ((messageLower.includes('horario') || messageLower.includes('hora') || 
+            messageLower.includes('cuándo') || messageLower.includes('cuando') ||
+            messageLower.includes('abierto') || messageLower.includes('cierran') || 
+            messageLower.includes('atención') || messageLower.includes('atencion')) &&
+           !messageLower.includes('contacto') && !messageLower.includes('adaptacion')) {
+  
+  respuesta = `⏰ *Nuestros horarios de atención:*\n\n` +
+             `📅 ${horariosAtencion.regular}\n\n` +
+             `📍 *Dirección:* Serrano 684, Villa Crespo, CABA\n` +
+             `¿Necesitás agendar una cita?`;
+ 
+    // Adaptación de lentes de contacto - SOLO SI PREGUNTAN ESPECÍFICAMENTE
+} else if (messageLower.includes('adaptacion') || messageLower.includes('adaptación') ||
+           messageLower.includes('cita contacto') || messageLower.includes('turno contacto')) {
+  
+  respuesta = `👁️  *Adaptación de Lentes de Contacto:*\n\n` +
+             `⏰ ${horariosAtencion.adaptacionLC}\n\n` +
+             `📍 *Dirección:* Serrano 684, Villa Crespo, CABA\n` +
+             `*Requisitos:*\n• Receta oftalmológica actualizada\n• Tiempo aproximado: 45-60 minutos\n\n` +
+             `¿Querés agendar tu cita?`;
+    
+ // Lentes de contacto - RESPUESTA DIRECTA Y PRECISA
+} else if (messageLower.includes('venden lente de contacto') || 
+           messageLower.includes('venden lentilla') ||
+           messageLower.includes('tienen lente de contacto') ||
+           messageLower.includes('tienen lentilla') ||
+           messageLower.includes('lente de contacto?') ||
+           messageLower.includes('lentilla?')) {
+  
+  const marcasLC = await obtenerMarcasLC();
+  
+  respuesta = `👁️  *¡Sí! Trabajamos con lentes de contacto* ✅\n\n` +
+             `📋 *Marcas disponibles:*\n${marcasLC.map(m => `• ${m}`).join('\n')}\n\n` +
+             `💡 *Requisitos:*\n• Receta oftalmológica actualizada (obligatoria)\n• Adaptación con profesional\n\n` +
+             `⏰ *Horario de adaptación:* ${horariosAtencion.adaptacionLC}\n\n` +
+             `¿Qué marca te interesa o ya usás alguna?`;
+    
   // Líquidos
   } else if (messageLower.includes('líquido') || messageLower.includes('liquido') || messageLower.includes('solución') || messageLower.includes('solucion')) {
     const liquidos = await obtenerLiquidos();
