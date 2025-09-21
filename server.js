@@ -469,17 +469,74 @@ async function procesarMensaje(mensaje, contexto, senderId) {
       respuesta = "👓 *Trabajamos con diversas marcas de calidad.*\n\n¿Buscás alguna marca específica?";
     }
 
-  // Obras sociales - INFORMACIÓN COMPLETA ACTUALIZADA
+// Obras sociales - INFORMACIÓN COMPLETA ACTUALIZADA
 } else if (messageLower.includes('obra social') || messageLower.includes('prepaga') || 
+           messageLower.includes('osde') || messageLower.includes('omint') ||
+           messageLower.includes('medife') || messageLower.includes('galeno') ||
            messageLower.includes('swiss') || messageLower.includes('medicus') ||
-           messageLower.includes('construir') || messageLower.includes('osetya') ||
            messageLower.includes('cobertura') || messageLower.includes('beneficio') ||
            messageLower.includes('receta') || messageLower.includes('oftalmologo') ||
-           messageLower.includes('medico') || messageLower.includes('cobertura')) {
+           messageLower.includes('medico') || messageLower.includes('afiliado') ||
+           messageLower.includes('carnet') || messageLower.includes('plan medico') ||
+           messageLower.includes('plan de salud') || 
+           /(que|qué|tienen|aceptan).*(obra social|prepaga)/i.test(mensaje)) {
   
-  const obraDetectada = detectarObraSocial(mensaje);
+  // Función para detectar CUALQUIER obra social mencionada
+  function detectarCualquierObraSocial(mensaje) {
+    const msg = mensaje.toLowerCase();
+    
+    // Patrones de nombres de obras sociales
+    const patronesObrasSociales = [
+      /\b(osde|osdepym)\b/, /\b(omint)\b/, /\b(medife|medifé)\b/, /\b(galeno)\b/,
+      /\b(swiss medical|swissmedical)\b/, /\b(medicus)\b/, /\b(prevencion salud|prevensalud)\b/,
+      /\b(sancor salud)\b/, /\b(asper salud)\b/, /\b(doctor salud)\b/,
+      /\b(ospedyc|ospedyc)\b/, /\b(ospoce|ospoce)\b/, /\b(ospegra)\b/,
+      /\b(ospaca|ospaca)\b/, /\b(ospijua)\b/, /\b(osplad)\b/,
+      /\b(ospia|ospia)\b/, /\b(osdebin|osdebin)\b/, /\b(osuthgra)\b/,
+      /\b(iosfa)\b/, /\b(ospfa)\b/, /\b(osfa)\b/, /\b(ospac)\b/,
+      /\b(ioma)\b/, /\b(amos|amos salud)\b/, /\b(apross)\b/, /\b(oses)\b/,
+      /\b(conde)\b/, /\b(sadaic)\b/, /\b(ospat)\b/, /\b(osprera)\b/,
+      /\b(osseg)\b/, /\b(osdeag|osdeag)\b/, /\b(osjp|osjp)\b/
+    ];
+    
+    // Palabras clave que indican que hablan de obras sociales
+    const palabrasClaveObraSocial = [
+      'obra social', 'prepaga', 'cobertura', 'beneficio', 
+      'afiliado', 'carnet', 'plan médico', 'plan de salud'
+    ];
+    
+    // 1. Buscar si menciona alguna obra social específica
+    for (const patron of patronesObrasSociales) {
+      const match = msg.match(patron);
+      if (match) {
+        return match[0].charAt(0).toUpperCase() + match[0].slice(1);
+      }
+    }
+    
+    // 2. Si no encuentra obra específica, pero usa palabras clave
+    const tienePalabrasClave = palabrasClaveObraSocial.some(palabra => msg.includes(palabra));
+    if (tienePalabrasClave) {
+      return "obra_social_general";
+    }
+    
+    return null;
+  }
   
-  if (obraDetectada) {
+  const obraDetectada = detectarCualquierObraSocial(mensaje);
+  
+  if (obraDetectada === "obra_social_general") {
+  
+    // PREGUNTA GENERAL SOBRE OBRAS SOCIALES
+    respuesta = `🏥 *Obras Sociales que aceptamos:*\n\n${obrasSociales.map(os => `• ${os}`).join('\n')}\n\n` +
+               `📋 *Requisitos importantes:*\n\n` +
+               `👁️  *Necesitás receta médica actualizada* (máximo 60 días)\n` +
+               `• Debe ser de un oftalmólogo matriculado\n` +
+               `• Con todos tus datos y diagnóstico detallado\n` +
+               `• Con datos de tu obra social y número de afiliado\n\n` +
+               `¿Tenés alguna obra social en particular?`;
+               
+  } else if (obraDetectada && obrasSociales.map(os => os.toLowerCase()).includes(obraDetectada.toLowerCase())) {
+    // SI TENEMOS ESA OBRA SOCIAL
     respuesta = `🏥 *Trabajamos con ${obraDetectada}* ✅\n\n📋 *¡Importante! Para usar tu obra social necesitás:*\n\n` +
                `👁️  *Receta médica OBLIGATORIA* con:\n` +
                `• Nombre completo y matrícula del oftalmólogo\n` +
@@ -492,31 +549,26 @@ async function procesarMensaje(mensaje, contexto, senderId) {
                `• Si dice "lente de lejos", no cubre lentes de cerca\n` +
                `• *No cubren lentes de contacto* con receta de armazones\n\n` +
                `¿Tenés la receta? ¡Acercate y te ayudamos con todo! 📞 *11 1234-5678*`;
+               
+  } else if (obraDetectada) {
+    // SI DETECTÓ UNA OBRA SOCIAL PERO NO LA TENEMOS
+    respuesta = `❌ *No trabajamos con ${obraDetectada.toUpperCase()} en este momento* 😔\n\n` +
+               `👉 *Pero sí contamos con:*\n` +
+               `• Precios competitivos\n` +
+               `• Promos exclusivas\n` +
+               `• Garantía en todos nuestros productos\n` +
+               `• Posibilidad de financiar tu compra en cuotas\n\n` +
+               `¿Querés que te asesoremos para que encuentres el lente ideal al mejor valor?`;
+               
   } else {
-    // DETECTAR SI MENCIONÓ ALGUNA OBRA SOCIAL ESPECÍFICA
-    const obrasMencionadas = obrasSociales.filter(obra => 
-      messageLower.includes(obra.toLowerCase())
-    );
-    
-    if (obrasMencionadas.length > 0) {
-      // Si mencionó una obra social que no tenemos
-      respuesta = `❌ *No trabajamos con ${obrasMencionadas[0]} en este momento* 😔\n\n` +
-                 `👉 *Pero sí contamos con:*\n` +
-                 `• Precios competitivos\n` +
-                 `• Promos exclusivas\n` +
-                 `• Garantía en todos nuestros productos\n` +
-                 `• Posibilidad de financiar tu compra en cuotas\n\n` +
-                 `¿Querés que te asesoremos para que encuentres el lente ideal al mejor valor?`;
-    } else {
-      // Si solo pregunta en general
-      respuesta = `🏥 *Obras Sociales que aceptamos:*\n\n${obrasSociales.map(os => `• ${os}`).join('\n')}\n\n` +
-                 `📋 *Requisitos importantes:*\n\n` +
-                 `👁️  *Necesitás receta médica actualizada* (máximo 60 días)\n` +
-                 `• Debe ser de un oftalmólogo matriculado\n` +
-                 `• Con todos tus datos y diagnóstico detallado\n` +
-                 `• Con datos de tu obra social y número de afiliado\n\n` +
-                 `¿Tenés alguna obra social en particular?`;
-    }
+    // FALLBACK - No detectó obra social específica
+    respuesta = `🏥 *Obras Sociales que aceptamos:*\n\n${obrasSociales.map(os => `• ${os}`).join('\n')}\n\n` +
+               `📋 *Requisitos importantes:*\n\n` +
+               `👁️  *Necesitás receta médica actualizada* (máximo 60 días)\n` +
+               `• Debe ser de un oftalmólogo matriculado\n` +
+               `• Con todos tus datos y diagnóstico detallado\n` +
+               `• Con datos de tu obra social y número de afiliado\n\n` +
+               `¿Tenés alguna obra social en particular?`;
   }
 // Dirección - SOLO DIRECCIÓN
 } else if (messageLower.includes('direccion') || messageLower.includes('dirección') ||
