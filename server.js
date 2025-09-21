@@ -578,4 +578,158 @@ async function procesarMensaje(mensaje, contexto, senderId) {
                  `📋 *Requisitos importantes:*\n\n` +
                  `👁️  *Necesitás receta médica actualizada* (máximo 60 días)\n` +
                  `• Debe ser de un oftalmólogo matriculado\n` +
-                 `• Con todos tus datos
+                 `• Con todos tus datos y diagnóstico detallado\n` +
+                 `• Con datos de tu obra social y número de afiliado\n\n` +
+                 `¿Tenés alguna obra social en particular? Decíme cuál y te doy más info.`;
+    }
+
+  // Horarios de atención
+  } else if (messageLower.includes('horario') || messageLower.includes('hora') || messageLower.includes('cuándo') ||
+             messageLower.includes('abierto') || messageLower.includes('cierran') || messageLower.includes('atención')) {
+    
+    respuesta = `⏰ *Nuestros horarios de atención:*\n\n` +
+               `📅 ${horariosAtencion.regular}\n` +
+               `👁️  *Adaptación de lentes de contacto:* ${horariosAtencion.adaptacionLC}\n\n` +
+               `📍 *Dirección:* Av. Corrientes 1234, CABA\n` +
+               `📞 *Teléfono:* 11 1234-5678\n\n` +
+               `¿Necesitás agendar una cita?`;
+
+  // Lentes de contacto
+  } else if (messageLower.includes('lente de contacto') || messageLower.includes('lentilla') || 
+             messageLower.includes('contacto') || messageLower.includes('acuvue') || 
+             messageLower.includes('air optix') || messageLower.includes('biofinity')) {
+    
+    const marcasLC = await obtenerMarcasLC();
+    
+    respuesta = `👁️  *Lentes de Contacto disponibles:*\n\n` +
+               `📋 *Marcas que trabajamos:*\n${marcasLC.map(m => `• ${m}`).join('\n')}\n\n` +
+               `💡 *Importante:* Necesitás receta oftalmológica actualizada\n` +
+               `⏰ *Adaptación:* ${horariosAtencion.adaptacionLC}\n\n` +
+               `¿Qué marca te interesa o ya usás alguna?`;
+
+  // Líquidos para lentes de contacto
+  } else if (messageLower.includes('líquido') || messageLower.includes('liquido') || 
+             messageLower.includes('solución') || messageLower.includes('solucion') || 
+             messageLower.includes('reno') || messageLower.includes('opti-free')) {
+    
+    const liquidos = await obtenerLiquidos();
+    
+    respuesta = `🧴 *Líquidos para lentes de contacto:*\n\n` +
+               `📦 *Productos disponibles:*\n${liquidos.map(l => `• ${l.marca} - ${l.tamano}`).join('\n')}\n\n` +
+               `💲 *Precios promocionales* todos los meses\n` +
+               `🎁 *Descuentos* por cantidad\n\n` +
+               `¿Te interesa algún producto en particular?`;
+
+  // Agradecimientos
+  } else if (messageLower.includes('gracias') || messageLower.includes('thanks') || 
+             messageLower.includes('genial') || messageLower.includes('perfecto')) {
+    
+    const emoji = personalidad.emojis[Math.floor(Math.random() * personalidad.emojis.length)];
+    respuesta = `${emoji} ¡De nada! Estoy aquí para ayudarte. ¿Hay algo más en lo que pueda asistirte?`;
+
+  // Despedidas
+  } else if (messageLower.includes('chau') || messageLower.includes('adiós') || 
+             messageLower.includes('bye') || messageLower.includes('nos vemos')) {
+    
+    respuesta = `👋 ¡Fue un gusto ayudarte! No dudes en escribirme si tenés más preguntas.\n\n` +
+               `*Hypnottica* - Tu visión, nuestra pasión.`;
+
+  // Fallback para mensajes no reconocidos
+  } else {
+    respuesta = obtenerFallbackAleatorio();
+  }
+
+  // Guardar contexto actualizado
+  contexto.historial.push({ mensaje, respuesta, timestamp: Date.now() });
+  await guardarContextoUsuario(senderId, contexto);
+  
+  return respuesta;
+}
+
+// ==================== ENDPOINT PARA WEBHOOK DE WHATSAPP ====================
+app.post('/webhook', async (req, res) => {
+  try {
+    // Verificar firma de Twilio si es necesario
+    const twilioSignature = req.headers['x-twilio-signature'];
+    const url = process.env.TWILIO_WEBHOOK_URL; // Debes configurar esta variable
+    
+    if (process.env.TWILIO_AUTH_TOKEN && twilioSignature && url) {
+      const isValid = twilio.validateRequest(
+        process.env.TWILIO_AUTH_TOKEN,
+        twilioSignature,
+        url,
+        req.body
+      );
+      
+      if (!isValid) {
+        return res.status(403).send('Invalid signature');
+      }
+    }
+    
+    // Obtener datos del mensaje
+    const senderId = req.body.From;
+    const message = req.body.Body;
+    
+    if (!senderId || !message) {
+      return res.status(400).send('Missing parameters');
+    }
+    
+    console.log(`📩 Mensaje de ${senderId}: ${message}`);
+    
+    // Obtener contexto del usuario
+    const contexto = await obtenerContextoUsuario(senderId);
+    
+    // Procesar mensaje
+    const respuesta = await procesarMensaje(message, contexto, senderId);
+    
+    // Responder con Twilio
+    const twiml = new twilio.twiml.MessagingResponse();
+    twiml.message(respuesta);
+    
+    res.writeHead(200, { 'Content-Type': 'text/xml' });
+    res.end(twiml.toString());
+    
+  } catch (error) {
+    console.error('Error en webhook:', error);
+    const twiml = new twilio.twiml.MessagingResponse();
+    twiml.message('❌ Ocurrió un error procesando tu mensaje. Por favor, intentá nuevamente.');
+    
+    res.writeHead(200, { 'Content-Type': 'text/xml' });
+    res.end(twiml.toString());
+  }
+});
+
+// ==================== ENDPOINT PARA VERIFICACIÓN DEL WEBHOOK ====================
+app.get('/webhook', (req, res) => {
+  // Verificación para Twilio
+  if (req.query && req.query['hub.verify_token'] === process.env.VERIFY_TOKEN) {
+    res.status(200).send(req.query['hub.challenge']);
+  } else {
+    res.status(403).send('Error en token de verificación');
+  }
+});
+
+// ==================== ENDPOINT DE SALUD ====================
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    name: personalidad.nombre,
+    users: redisClient ? 'Redis' : 'Memoria (' + memoriaUsuarios.size + ' usuarios)'
+  });
+});
+
+// ==================== INICIAR SERVIDOR ====================
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🤖 ${personalidad.nombre} está funcionando en el puerto ${PORT}`);
+  console.log(`👓 Bot de WhatsApp para óptica listo para usar`);
+});
+
+// Manejo de errores no capturados
+process.on('unhandledRejection', (err) => {
+  console.error('Error no manejado:', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Excepción no capturada:', err);
+});
