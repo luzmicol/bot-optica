@@ -1,7 +1,7 @@
 {
   "name": "hypnottica-bot",
-  "version": "3.0.0",
-  "description": "Bot de WhatsApp para Hypnottica Óptica - Asistente virtual inteligente",
+  "version": "3.1.0",
+  "description": "Bot de WhatsApp para Hypnottica Óptica - Asistente virtual inteligente con IA",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -16,7 +16,9 @@
     "hypnottica",
     "assistant",
     "google-sheets",
-    "redis"
+    "redis",
+    "openai",
+    "ia"
   ],
   "author": "Hypnottica Óptica",
   "license": "MIT",
@@ -24,7 +26,11 @@
     "express": "^4.18.2",
     "twilio": "^4.23.0",
     "google-spreadsheet": "^4.1.1",
-    "redis": "^4.6.13"
+    "redis": "^4.6.13",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   },
   "engines": {
     "node": ">=18.0.0",
