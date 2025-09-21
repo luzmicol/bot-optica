@@ -1,7 +1,7 @@
 {
   "name": "hypnottica-bot",
   "version": "3.1.0",
-  "description": "Bot de WhatsApp para Hypnottica Óptica - Asistente virtual inteligente con IA",
+  "description": "Bot de WhatsApp para Hypnottica Óptica - Asistente virtual inteligente con IA y Google Sheets",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -18,7 +18,8 @@
     "google-sheets",
     "redis",
     "openai",
-    "ia"
+    "ia",
+    "twilio"
   ],
   "author": "Hypnottica Óptica",
   "license": "MIT",
@@ -38,10 +39,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tu-usuario/hypnottica-bot.git"
+    "url": "https://github.com/luzmicol/bot-optica.git"
   },
   "bugs": {
-    "url": "https://github.com/tu-usuario/hypnottica-bot/issues"
+    "url": "https://github.com/luzmicol/bot-optica/issues"
   },
-  "homepage": "https://github.com/tu-usuario/hypnottica-bot#readme"
+  "homepage": "https://github.com/luzmicol/bot-optica#readme"
 }
