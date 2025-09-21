@@ -273,6 +273,30 @@ async function obtenerTodosProductos() {
   }
 }
 
+// ==================== FUNCIÓN PARA OBTENER PRECIOS REALES ====================
+async function obtenerPreciosReales() {
+  try {
+    const productos = await obtenerTodosProductos();
+    const preciosArmazones = productos
+      .filter(p => p.categoria.includes('ARMAZON') && p.precio && !isNaN(parseFloat(p.precio)))
+      .map(p => parseFloat(p.precio.replace('$', '').replace(',', '')))
+      .filter(precio => precio > 0);
+    
+    if (preciosArmazones.length === 0) {
+      return null;
+    }
+    
+    const minPrice = Math.min(...preciosArmazones);
+    const maxPrice = Math.max(...preciosArmazones);
+    const avgPrice = Math.round(preciosArmazones.reduce((a, b) => a + b, 0) / preciosArmazones.length);
+    
+    return { min: minPrice, max: maxPrice, avg: avgPrice };
+  } catch (error) {
+    console.error('Error obteniendo precios reales:', error);
+    return null;
+  }
+}
+
 // ==================== FUNCIÓN PARA OBTENER MARCAS REALES ====================
 async function obtenerMarcasReales() {
   try {
@@ -280,17 +304,19 @@ async function obtenerMarcasReales() {
     const marcas = new Set();
     
     productos.forEach(producto => {
-      if (producto.marca && producto.marca.trim() !== '') {
+      if (producto.marca && producto.marca.trim() !== '' && 
+          !producto.marca.toLowerCase().includes('sin marca') &&
+          !producto.marca.toLowerCase().includes('varios')) {
         marcas.add(producto.marca.trim());
       }
     });
     
     const marcasArray = Array.from(marcas).sort();
-    console.log(`🏷️ Marcas detectadas: ${marcasArray.join(', ')}`);
-    return marcasArray;
+    console.log(`🏷️ Marcas detectadas REALES: ${marcasArray.join(', ')}`);
+    return marcasArray.length > 0 ? marcasArray : ['Ray-Ban', 'Oakley', 'Vulk', 'Carter', 'Sarkany'];
   } catch (error) {
     console.error('Error obteniendo marcas, usando marcas por defecto:', error);
-    return ['Ray-Ban', 'Oakley', 'Vulk', 'Carter', 'Sarkany', 'Acuvue', 'Rusty'];
+    return ['Ray-Ban', 'Oakley', 'Vulk', 'Carter', 'Sarkany'];
   }
 }
 
@@ -491,22 +517,56 @@ async function detectarMarca(mensaje) {
 
 // ==================== PROCESAMIENTO PRINCIPAL DE MENSAJES ====================
 async function procesarMensaje(mensaje, contexto, senderId) {
-  const messageLower = mensaje.toLowerCase();
+  const messageLower = mensaje.toLowerCase().trim();
   let respuesta = '';
 
-  // Saludo inicial
-  if (messageLower.includes('hola') || messageLower === 'hi' || messageLower === '👋') {
-    contexto.paso = 0;
-    const emoji = personalidad.emojis[Math.floor(Math.random() * personalidad.emojis.length)];
-    respuesta = `${emoji} ¡Hola! Soy ${personalidad.nombre}, tu asistente de *Hypnottica*. ¿En qué puedo ayudarte hoy?\n\n• Consultar stock\n• Precios\n• Agendar cita\n• Obras sociales\n• Ubicación y horarios`;
+  console.log(`🔍 Procesando: "${mensaje}" -> Contexto paso: ${contexto.paso}`);
 
-  // Buscar stock por código
-  } else if (messageLower.startsWith('#stock ') || messageLower.startsWith('stock ')) {
-    let code = messageLower.startsWith('#stock ') ? mensaje.split(' ')[1] : mensaje.split(' ')[1];
+  // Saludo inicial - MÁS FLEXIBLE
+  if (contexto.paso === 0 || 
+      messageLower.includes('hola') || 
+      messageLower === 'hi' || 
+      messageLower === '👋' ||
+      messageLower.includes('buenas') ||
+      messageLower.includes('buenos')) {
+    
+    contexto.paso = 1;
+    const emoji = personalidad.emojis[Math.floor(Math.random() * personalidad.emojis.length)];
+    respuesta = `${emoji} ¡Hola! Soy ${personalidad.nombre}, tu asistente de *Hypnottica*. ¿En qué puedo ayudarte hoy?\n\n` +
+                `• *Consultar stock* - Decíme "stock" o el código del producto\n` +
+                `• *Precios* - Consultá precios de productos\n` +
+                `• *Marcas* - Conocé nuestras marcas disponibles\n` +
+                `• *Agendar cita* - Reservá tu turno\n` +
+                `• *Obras sociales* - Información de cobertura\n` +
+                `• *Horarios* - Nuestros horarios de atención`;
+
+  // Buscar stock por código - MÁS FLEXIBLE
+  } else if (messageLower.startsWith('#') || 
+             messageLower.startsWith('stock ') || 
+             messageLower.includes('codigo') ||
+             messageLower.includes('código') ||
+             (messageLower.length <= 10 && /[a-zA-Z]-\d+/i.test(messageLower))) {
+    
+    let code = '';
+    if (messageLower.startsWith('#')) {
+      code = mensaje.split('#')[1]?.trim();
+    } else if (messageLower.startsWith('stock ')) {
+      code = mensaje.split(' ')[1]?.trim();
+    } else if (messageLower.includes('codigo') || messageLower.includes('código')) {
+      // Extraer código después de "código"
+      const match = mensaje.match(/(codigo|código)[:\s]*([a-zA-Z0-9-]+)/i);
+      code = match ? match[2] : '';
+    } else {
+      code = messageLower;
+    }
     
     if (!code) {
-      respuesta = "❌ Contame el código del modelo que te interesa, por ejemplo: \"AC-274\"";
+      respuesta = "❌ Por favor, decíme el *código del producto* que te interesa.\n\nEjemplo: *AC-274* o *#AC-274*";
     } else {
+      respuesta = "🔍 *Buscando el producto...* Un momento por favor.";
+      // Guardar contexto para buscar
+      contexto.paso = 2;
+      contexto.datos.ultimaBusqueda = code;
       const product = await searchInSheet(code);
       
       if (product) {
@@ -520,20 +580,89 @@ async function procesarMensaje(mensaje, contexto, senderId) {
 🔄  *Modelo:* ${product.modelo || ''}
 🎨  *Color:* ${product.color || 'N/A'}${solReceta}${descripcion}
 📊  *Stock:* ${product.cantidad || '0'} unidades
-💲  *Precio:* $${product.precio || 'N/A'}
+💲  *Precio:* $${product.precio || 'Consultar'}
         `;
       } else {
-        respuesta = "❌ *Producto no encontrado.* Verificá el código o describime lo que buscás.";
+        respuesta = "❌ *No encontré ese código.* ¿Podrías verificarlo?\n\n" +
+                   "O contame qué tipo de lente buscás y te ayudo a encontrar alternativas.";
       }
     }
 
-  // Búsqueda por descripción
-  } else if (messageLower.includes('busco') || messageLower.includes('quiero') || messageLower.includes('tene') ||
-             messageLower.includes('redondo') || messageLower.includes('cuadrado') || messageLower.includes('ovalado') ||
-             messageLower.includes('aviador') || messageLower.includes('wayfarer') || messageLower.includes('rectangular') ||
-             messageLower.includes('metal') || messageLower.includes('acetato') || messageLower.includes('chico') ||
-             messageLower.includes('grande') || messageLower.includes('mediano') || messageLower.includes('estilo') ||
-             messageLower.includes('lente de contacto') || messageLower.includes('lentilla') || messageLower.includes('contacto')) {
+  // Consulta sobre precios - CON DATOS REALES
+  } else if (messageLower.includes('precio') || 
+             messageLower.includes('cuesta') || 
+             messageLower.includes('cuanto sale') ||
+             messageLower.includes('valor') ||
+             messageLower === 'precios') {
+    
+    const preciosReales = await obtenerPreciosReales();
+    
+    if (preciosReales) {
+      respuesta = `💲 *Precios de armazones según nuestro stock:*\n\n` +
+                  `• Desde: $${preciosReales.min.toLocaleString('es-AR')}\n` +
+                  `• Hasta: $${preciosReales.max.toLocaleString('es-AR')}\n` +
+                  `• Precio promedio: $${preciosReales.avg.toLocaleString('es-AR')}\n\n` +
+                  `_Los precios varían según marca, material y características._\n\n` +
+                  `¿Te interesa algún modelo específico? Decíme el *código* o describime lo que buscás.`;
+    } else {
+      respuesta = "💲 *Tenemos armazones para todos los presupuestos.*\n\n" +
+                  "Los precios varían según:\n• Marca\n• Material (acetato, metal, etc.)\n• Diseño\n• Características especiales\n\n" +
+                  "¿Te interesa algún modelo en particular? Decíme el *código* o describime lo que buscás.";
+    }
+
+  // Consulta sobre marcas - SOLO MARCAS REALES
+  } else if (messageLower.includes('marca') || 
+             messageLower.includes('que marcas') ||
+             messageLower.includes('qué marcas') ||
+             messageLower.includes('marcas tienen')) {
+    
+    const marcasReales = await obtenerMarcasReales();
+    
+    if (marcasReales.length > 0) {
+      // Mostrar máximo 10 marcas para no saturar
+      const marcasMostrar = marcasReales.slice(0, 10);
+      respuesta = `👓 *Algunas de las marcas que trabajamos:*\n\n${marcasMostrar.map(m => `• ${m}`).join('\n')}`;
+      
+      if (marcasReales.length > 10) {
+        respuesta += `\n\n...y ${marcasReales.length - 10} marcas más.`;
+      }
+      
+      respuesta += `\n\n¿Te interesa alguna marca en particular?`;
+    } else {
+      respuesta = "👓 *Trabajamos con diversas marcas de calidad.*\n\n¿Buscás alguna marca específica?";
+    }
+
+  // Búsqueda por descripción - MÁS FLEXIBLE
+  } else if (messageLower.includes('busco') || 
+             messageLower.includes('quiero') || 
+             messageLower.includes('tene') ||
+             messageLower.includes('tienen') ||
+             messageLower.includes('lente') ||
+             messageLower.includes('lentes') ||
+             messageLower.includes('anteojo') ||
+             messageLower.includes('anteojos') ||
+             messageLower.includes('gafa') ||
+             messageLower.includes('gafas') ||
+             messageLower.includes('vulk') ||
+             messageLower.includes('ray-ban') ||
+             messageLower.includes('oakley') ||
+             messageLower.includes('sarkany') ||
+             messageLower.includes('carter') ||
+             messageLower.includes('redondo') || 
+             messageLower.includes('cuadrado') || 
+             messageLower.includes('ovalado') ||
+             messageLower.includes('aviador') || 
+             messageLower.includes('wayfarer') || 
+             messageLower.includes('rectangular') ||
+             messageLower.includes('metal') || 
+             messageLower.includes('acetato') || 
+             messageLower.includes('chico') ||
+             messageLower.includes('grande') || 
+             messageLower.includes('mediano') || 
+             messageLower.includes('estilo') ||
+             messageLower.includes('lente de contacto') || 
+             messageLower.includes('lentilla') || 
+             messageLower.includes('contacto')) {
     
     respuesta = "🔍 *Buscando en nuestro stock...* Un momento por favor.";
     const productosEncontrados = await buscarPorDescripcion(mensaje);
@@ -546,9 +675,11 @@ async function procesarMensaje(mensaje, contexto, senderId) {
         respuesta += `${index + 1}. *${producto.codigo}* - ${producto.marca} ${producto.modelo}${desc} - $${producto.precio}\n`;
       });
       
-      respuesta += `\n*Escribí #stock [código] para más detalles de cada uno.*`;
+      respuesta += `\n*Escribí el código (ej: AC-274) para más detalles de cada uno.*`;
     } else {
-      respuesta = "❌ *No encontré productos que coincidan.*\n\nProbá ser más específico o contactá a un asesor al *11 1234-5678*.";
+      respuesta = "❌ *No encontré productos que coincidan exactamente.*\n\n" +
+                 "Probá ser más específico o contactá a un asesor al *11 1234-5678*.\n\n" +
+                 "También podés:\n• Decirme un código específico\n• Visitarnos para ver todos los modelos";
     }
 
   // Obras sociales - INFORMACIÓN COMPLETA ACTUALIZADA
@@ -595,10 +726,10 @@ async function procesarMensaje(mensaje, contexto, senderId) {
                `📞 *Teléfono:* 11 1234-5678\n\n` +
                `¿Necesitás agendar una cita?`;
 
-  // Lentes de contacto
-  } else if (messageLower.includes('lente de contacto') || messageLower.includes('lentilla') || 
-             messageLower.includes('contacto') || messageLower.includes('acuvue') || 
-             messageLower.includes('air optix') || messageLower.includes('biofinity')) {
+  // Lentes de contacto - SIN PRECIOS FIJOS
+  } else if (messageLower.includes('lente de contacto') || 
+             messageLower.includes('lentilla') || 
+             messageLower.includes('contacto')) {
     
     const marcasLC = await obtenerMarcasLC();
     
@@ -608,15 +739,16 @@ async function procesarMensaje(mensaje, contexto, senderId) {
                `⏰ *Adaptación:* ${horariosAtencion.adaptacionLC}\n\n` +
                `¿Qué marca te interesa o ya usás alguna?`;
 
-  // Líquidos para lentes de contacto
-  } else if (messageLower.includes('líquido') || messageLower.includes('liquido') || 
-             messageLower.includes('solución') || messageLower.includes('solucion') || 
-             messageLower.includes('reno') || messageLower.includes('opti-free')) {
+  // Líquidos para lentes de contacto - SIN PRECIOS FIJOS
+  } else if (messageLower.includes('líquido') || 
+             messageLower.includes('liquido') || 
+             messageLower.includes('solución') || 
+             messageLower.includes('solucion')) {
     
     const liquidos = await obtenerLiquidos();
     
     respuesta = `🧴 *Líquidos para lentes de contacto:*\n\n` +
-               `📦 *Productos disponibles:*\n${liquidos.map(l => `• ${l.marca} - ${l.tamano}`).join('\n')}\n\n` +
+               `📦 *Productos disponibles:*\n${liquidos.map(l => `• ${l.marca} ${l.tamano ? `- ${l.tamano}` : ''}`).join('\n')}\n\n` +
                `💲 *Precios promocionales* todos los meses\n` +
                `🎁 *Descuentos* por cantidad\n\n` +
                `¿Te interesa algún producto en particular?`;
@@ -637,100 +769,6 @@ async function procesarMensaje(mensaje, contexto, senderId) {
 
   // Fallback para mensajes no reconocidos
   } else {
-    respuesta = obtenerFallbackAleatorio();
-  }
-
-  // Guardar contexto actualizado
-  contexto.historial.push({ mensaje, respuesta, timestamp: Date.now() });
-  await guardarContextoUsuario(senderId, contexto);
-  
-  return respuesta;
-}
-
-// ==================== ENDPOINT PARA WEBHOOK DE WHATSAPP ====================
-app.post('/webhook', async (req, res) => {
-  try {
-    // Verificar firma de Twilio si es necesario
-    const twilioSignature = req.headers['x-twilio-signature'];
-    const url = process.env.TWILIO_WEBHOOK_URL; // Debes configurar esta variable
-    
-    if (process.env.TWILIO_AUTH_TOKEN && twilioSignature && url) {
-      const isValid = twilio.validateRequest(
-        process.env.TWILIO_AUTH_TOKEN,
-        twilioSignature,
-        url,
-        req.body
-      );
-      
-      if (!isValid) {
-        return res.status(403).send('Invalid signature');
-      }
-    }
-    
-    // Obtener datos del mensaje
-    const senderId = req.body.From;
-    const message = req.body.Body;
-    
-    if (!senderId || !message) {
-      return res.status(400).send('Missing parameters');
-    }
-    
-    console.log(`📩 Mensaje de ${senderId}: ${message}`);
-    
-    // Obtener contexto del usuario
-    const contexto = await obtenerContextoUsuario(senderId);
-    
-    // Procesar mensaje
-    const respuesta = await procesarMensaje(message, contexto, senderId);
-    
-    // Responder con Twilio
-    const twiml = new twilio.twiml.MessagingResponse();
-    twiml.message(respuesta);
-    
-    res.writeHead(200, { 'Content-Type': 'text/xml' });
-    res.end(twiml.toString());
-    
-  } catch (error) {
-    console.error('Error en webhook:', error);
-    const twiml = new twilio.twiml.MessagingResponse();
-    twiml.message('❌ Ocurrió un error procesando tu mensaje. Por favor, intentá nuevamente.');
-    
-    res.writeHead(200, { 'Content-Type': 'text/xml' });
-    res.end(twiml.toString());
-  }
-});
-
-// ==================== ENDPOINT PARA VERIFICACIÓN DEL WEBHOOK ====================
-app.get('/webhook', (req, res) => {
-  // Verificación para Twilio
-  if (req.query && req.query['hub.verify_token'] === process.env.VERIFY_TOKEN) {
-    res.status(200).send(req.query['hub.challenge']);
-  } else {
-    res.status(403).send('Error en token de verificación');
-  }
-});
-
-// ==================== ENDPOINT DE SALUD ====================
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
-    name: personalidad.nombre,
-    users: redisClient ? 'Redis' : 'Memoria (' + memoriaUsuarios.size + ' usuarios)'
-  });
-});
-
-// ==================== INICIAR SERVIDOR ====================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🤖 ${personalidad.nombre} está funcionando en el puerto ${PORT}`);
-  console.log(`👓 Bot de WhatsApp para óptica listo para usar`);
-});
-
-// Manejo de errores no capturados
-process.on('unhandledRejection', (err) => {
-  console.error('Error no manejado:', err);
-});
-
-process.on('uncaughtException', (err) => {
-  console.error('Excepción no capturada:', err);
-});
+    contexto.paso = 0; // Reiniciar contexto si no se entiende
+    respuesta = `🤔 No estoy segura de entenderte. ¿Podrías decirlo de otra forma?\n\n` +
+               `Podés preguntarme por:\n• Stock de productos\n• Precios\n• Marcas\n• Horarios\n• Obras sociales\n\n` +
