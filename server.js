@@ -772,3 +772,108 @@ async function procesarMensaje(mensaje, contexto, senderId) {
     contexto.paso = 0; // Reiniciar contexto si no se entiende
     respuesta = `🤔 No estoy segura de entenderte. ¿Podrías decirlo de otra forma?\n\n` +
                `Podés preguntarme por:\n• Stock de productos\n• Precios\n• Marcas\n• Horarios\n• Obras sociales\n\n` +
+      // Fallback para mensajes no reconocidos
+  } else {
+    contexto.paso = 0; // Reiniciar contexto si no se entiende
+    respuesta = `🤔 No estoy segura de entenderte. ¿Podrías decirlo de otra forma?\n\n` +
+               `Podés preguntarme por:\n• Stock de productos\n• Precios\n• Marcas\n• Horarios\n• Obras sociales\n\n` +
+               `O escribí *"hola"* para ver todas las opciones.`;
+  }
+
+  // Guardar contexto actualizado
+  contexto.historial.push({ mensaje, respuesta, timestamp: Date.now() });
+  await guardarContextoUsuario(senderId, contexto);
+  
+  return respuesta;
+}
+
+// ==================== ENDPOINT PARA WEBHOOK DE WHATSAPP ====================
+app.post('/webhook', async (req, res) => {
+  try {
+    // Verificar firma de Twilio si es necesario
+    const twilioSignature = req.headers['x-twilio-signature'];
+    const url = process.env.TWILIO_WEBHOOK_URL;
+    
+    if (process.env.TWILIO_AUTH_TOKEN && twilioSignature && url) {
+      const isValid = twilio.validateRequest(
+        process.env.TWILIO_AUTH_TOKEN,
+        twilioSignature,
+        url,
+        req.body
+      );
+      
+      if (!isValid) {
+        return res.status(403).send('Invalid signature');
+      }
+    }
+    
+    // Obtener datos del mensaje
+    const senderId = req.body.From;
+    const message = req.body.Body;
+    
+    if (!senderId || !message) {
+      return res.status(400).send('Missing parameters');
+    }
+    
+    console.log(`📩 Mensaje de ${senderId}: ${message}`);
+    
+    // Obtener contexto del usuario
+    const contexto = await obtenerContextoUsuario(senderId);
+    
+    // Procesar mensaje con timeout para evitar demoras
+    const respuesta = await Promise.race([
+      procesarMensaje(message, contexto, senderId),
+      new Promise((resolve) => setTimeout(() => resolve("⏰ Estoy procesando tu consulta..."), 8000))
+    ]);
+    
+    // Responder con Twilio
+    const twiml = new twilio.twiml.MessagingResponse();
+    twiml.message(respuesta);
+    
+    res.writeHead(200, { 'Content-Type': 'text/xml' });
+    res.end(twiml.toString());
+    
+  } catch (error) {
+    console.error('Error en webhook:', error);
+    const twiml = new twilio.twiml.MessagingResponse();
+    twiml.message('❌ Ocurrió un error. Por favor, intentá nuevamente en un momento.');
+    
+    res.writeHead(200, { 'Content-Type': 'text/xml' });
+    res.end(twiml.toString());
+  }
+});
+
+// ==================== ENDPOINT PARA VERIFICACIÓN DEL WEBHOOK ====================
+app.get('/webhook', (req, res) => {
+  // Verificación para Twilio
+  if (req.query && req.query['hub.verify_token'] === process.env.VERIFY_TOKEN) {
+    res.status(200).send(req.query['hub.challenge']);
+  } else {
+    res.status(403).send('Error en token de verificación');
+  }
+});
+
+// ==================== ENDPOINT DE SALUD ====================
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    name: personalidad.nombre,
+    users: redisClient ? 'Redis' : 'Memoria (' + memoriaUsuarios.size + ' usuarios)'
+  });
+});
+
+// ==================== INICIAR SERVIDOR ====================
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🤖 ${personalidad.nombre} está funcionando en el puerto ${PORT}`);
+  console.log(`👓 Bot de WhatsApp para óptica listo para usar`);
+});
+
+// Manejo de errores no capturados
+process.on('unhandledRejection', (err) => {
+  console.error('Error no manejado:', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Excepción no capturada:', err);
+});
