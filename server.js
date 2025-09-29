@@ -183,7 +183,36 @@ app.get('/test', (req, res) => {
     </html>
   `);
 });
-
+// Página principal
+app.get('/', (req, res) => {
+  res.send(`
+    <html>
+      <head>
+        <title>Hypnottica - Asistente Virtual</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; text-align: center; }
+          .container { max-width: 600px; margin: 0 auto; }
+          .status { background: #d4edda; padding: 20px; border-radius: 10px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>🤖 Hypnottica - Asistente Virtual</h1>
+          <div class="status">
+            <h2>✅ Servidor funcionando correctamente</h2>
+            <p><strong>Nombre:</strong> ${config.personalidad.nombre}</p>
+            <p><strong>Estado:</strong> Online</p>
+          </div>
+          <p>
+            <a href="/health">Health Check</a> | 
+            <a href="/test">Página de Test</a>
+          </p>
+          <p>✨ Asistente virtual para WhatsApp listo para usar</p>
+        </div>
+      </body>
+    </html>
+  `);
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🤖 ${config.personalidad.nombre} funcionando en puerto ${PORT}`);
