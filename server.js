@@ -212,12 +212,6 @@ app.get('/probar-bot', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🤖 ${config.personalidad.nombre} funcionando en puerto ${PORT}`);
-  console.log(`📱 Webhook listo para WhatsApp Business API`);
-  console.log(`🧪 Probador disponible en: /probar-bot`);
-});
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🤖 ${config.personalidad.nombre} funcionando en puerto ${PORT}`);
 });
 
 module.exports = app;
