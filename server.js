@@ -1,17 +1,13 @@
-// REEMPLAZÁ tu server.js actual con ESTE CÓDIGO
 const express = require('express');
-const twilio = require('twilio');
+const { config } = require('./src/config/environment');
 const googleSheetsService = require('./src/services/googleSheetsService');
 const memoryService = require('./src/services/memoryService');
-const { config } = require('./src/config/environment');
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// ==================== FUNCIONES PRINCIPALES MEJORADAS ====================
-
-// Búsqueda inteligente MEJORADA
+// ==================== FUNCIONES PRINCIPALES ====================
 async function buscarPorDescripcion(descripcion) {
   try {
     const productos = await googleSheetsService.obtenerProductosDeSheet(config.google.sheets.armazones);
@@ -24,7 +20,6 @@ async function buscarPorDescripcion(descripcion) {
       ];
     }
     
-    // Búsqueda simple por palabras clave
     const descLower = descripcion.toLowerCase();
     const encontrados = productosConStock.filter(p => 
       p.marca.toLowerCase().includes(descLower) ||
@@ -39,18 +34,15 @@ async function buscarPorDescripcion(descripcion) {
   }
 }
 
-// Procesador de mensajes MEJORADO
 async function procesarMensaje(mensaje, contexto, senderId) {
   const messageLower = mensaje.toLowerCase().trim();
   let respuesta = '';
 
-  // Saludo inicial
   if (contexto.paso === 0 || messageLower.includes('hola')) {
     contexto.paso = 1;
     const emoji = config.personalidad.emojis[Math.floor(Math.random() * config.personalidad.emojis.length)];
     respuesta = `${emoji} ¡Hola! Soy ${config.personalidad.nombre}, tu asistente de *Hypnottica*. ¿En qué puedo ayudarte hoy?\n\n• Consultar stock\n• Precios\n• Agendar cita\n• Obras sociales\n• Ubicación y horarios`;
 
-  // Buscar stock por código - MEJORADO
   } else if (messageLower.startsWith('#stock ') || messageLower.startsWith('stock ')) {
     let code = messageLower.split(' ')[1];
     if (!code) {
@@ -65,7 +57,6 @@ async function procesarMensaje(mensaje, contexto, senderId) {
       }
     }
 
-  // Búsqueda por descripción - MEJORADO
   } else if (messageLower.includes('busco') || messageLower.includes('quiero') || messageLower.includes('tene') || messageLower.includes('lente')) {
     respuesta = "🔍 *Buscando en nuestro stock...* Un momento por favor.";
     const productosEncontrados = await buscarPorDescripcion(mensaje);
@@ -108,106 +99,90 @@ async function procesarMensaje(mensaje, contexto, senderId) {
   return respuesta;
 }
 
-// ==================== WEBHOOK PRINCIPAL ====================
+// ==================== WEBHOOK PARA WHATSAPP ====================
 app.post('/webhook', async (req, res) => {
   try {
-    const senderId = req.body.From;
-    const message = req.body.Body;
+    const entry = req.body.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const value = changes?.value;
     
-    if (!senderId || !message) {
-      return res.status(400).send('Faltan parámetros');
+    if (!value || !value.messages) {
+      return res.status(200).send('EVENT_RECEIVED');
     }
     
-    console.log(`📩 Mensaje de ${senderId}: ${message}`);
-    const contexto = await memoryService.obtenerContextoUsuario(senderId);
-    const respuesta = await procesarMensaje(message, contexto, senderId);
+    const message = value.messages[0];
+    const senderId = message.from;
+    const messageText = message.text?.body;
     
-    const twiml = new twilio.twiml.MessagingResponse();
-    twiml.message(respuesta);
-    res.type('text/xml').send(twiml.toString());
+    if (!messageText) {
+      return res.status(200).send('OK');
+    }
+    
+    console.log(`📩 Mensaje de ${senderId}: ${messageText}`);
+    const contexto = await memoryService.obtenerContextoUsuario(senderId);
+    const respuesta = await procesarMensaje(messageText, contexto, senderId);
+    
+    // Enviar respuesta a WhatsApp
+    const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+    if (ACCESS_TOKEN && value.metadata) {
+      await fetch(`https://graph.facebook.com/v17.0/${value.metadata.phone_number_id}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ACCESS_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: senderId,
+          text: { body: respuesta }
+        })
+      });
+    }
+    
+    res.status(200).send('OK');
     
   } catch (error) {
     console.error('Error en webhook:', error);
-    const twiml = new twilio.twiml.MessagingResponse();
-    twiml.message('❌ Ocurrió un error. Por favor, intentá nuevamente.');
-    res.type('text/xml').send(twiml.toString());
+    res.status(200).send('OK');
   }
 });
 
+// Verificación del webhook
+app.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  
+  if (mode === 'subscribe' && token === (process.env.WHATSAPP_VERIFY_TOKEN || 'hypnottica_token')) {
+    console.log('✅ Webhook verificado por WhatsApp');
+    res.status(200).send(challenge);
+  } else {
+    console.log('❌ Error en verificación de webhook');
+    res.sendStatus(403);
+  }
+});
+
+// Health check simple
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     name: config.personalidad.nombre,
-    message: 'Asistente funcionando correctamente'
-  });
-});
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    name: config.personalidad.nombre,
-    whatsapp: 'Configurado para WhatsApp Business API'
+    service: 'Asistente Óptica Hypnottica'
   });
 });
 
-// ==================== RUTA TEMPORAL PARA PROBAR EL BOT ====================
-app.post('/probar-bot', async (req, res) => {
-  try {
-    const { mensaje, senderId } = req.body;
-    
-    if (!mensaje) {
-      return res.status(400).json({ error: 'Falta el mensaje' });
-    }
-    
-    console.log(`🧪 Probando bot: ${mensaje}`);
-    const contexto = await memoryService.obtenerContextoUsuario(senderId || 'test-user');
-    const respuesta = await procesarMensaje(mensaje, contexto, senderId || 'test-user');
-    
-    res.json({
-      mensaje_original: mensaje,
-      respuesta: respuesta,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Error en prueba:', error);
-    res.status(500).json({ error: 'Error interno' });
-  }
-});
-
-app.get('/probar-bot', (req, res) => {
+// Ruta de prueba simple
+app.get('/test', (req, res) => {
   res.send(`
     <html>
-      <head>
-        <title>Probador Bot - Hypnottica</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 40px; }
-          form { margin: 20px 0; }
-          input { width: 300px; padding: 10px; font-size: 16px; }
-          button { padding: 10px 20px; font-size: 16px; background: #25D366; color: white; border: none; cursor: pointer; }
-          .result { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        </style>
-      </head>
       <body>
-        <h2>🧪 Probador del Bot - Hypnottica</h2>
-        <form action="/probar-bot" method="post">
-          <input type="text" name="mensaje" placeholder="Escribe un mensaje para Luna..." required>
-          <button type="submit">Enviar a Luna</button>
-        </form>
-        <p><strong>Ejemplos para probar:</strong></p>
-        <ul>
-          <li>"hola"</li>
-          <li>"#stock AC-274"</li>
-          <li>"busco lentes ray-ban"</li>
-          <li>"precios"</li>
-          <li>"horarios"</li>
-          <li>"obra social"</li>
-        </ul>
+        <h1>🤖 Bot Hypnottica - Funcionando</h1>
+        <p>El servidor está online. WhatsApp configurado.</p>
+        <p><a href="/health">Health Check</a></p>
       </body>
     </html>
   `);
 });
-
-// ==================== FIN RUTA TEMPORAL ====================
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
