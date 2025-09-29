@@ -141,7 +141,80 @@ app.get('/health', (req, res) => {
     message: 'Asistente funcionando correctamente'
   });
 });
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    name: config.personalidad.nombre,
+    whatsapp: 'Configurado para WhatsApp Business API'
+  });
+});
 
+// ==================== RUTA TEMPORAL PARA PROBAR EL BOT ====================
+app.post('/probar-bot', async (req, res) => {
+  try {
+    const { mensaje, senderId } = req.body;
+    
+    if (!mensaje) {
+      return res.status(400).json({ error: 'Falta el mensaje' });
+    }
+    
+    console.log(`🧪 Probando bot: ${mensaje}`);
+    const contexto = await memoryService.obtenerContextoUsuario(senderId || 'test-user');
+    const respuesta = await procesarMensaje(mensaje, contexto, senderId || 'test-user');
+    
+    res.json({
+      mensaje_original: mensaje,
+      respuesta: respuesta,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error en prueba:', error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+app.get('/probar-bot', (req, res) => {
+  res.send(`
+    <html>
+      <head>
+        <title>Probador Bot - Hypnottica</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; }
+          form { margin: 20px 0; }
+          input { width: 300px; padding: 10px; font-size: 16px; }
+          button { padding: 10px 20px; font-size: 16px; background: #25D366; color: white; border: none; cursor: pointer; }
+          .result { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        </style>
+      </head>
+      <body>
+        <h2>🧪 Probador del Bot - Hypnottica</h2>
+        <form action="/probar-bot" method="post">
+          <input type="text" name="mensaje" placeholder="Escribe un mensaje para Luna..." required>
+          <button type="submit">Enviar a Luna</button>
+        </form>
+        <p><strong>Ejemplos para probar:</strong></p>
+        <ul>
+          <li>"hola"</li>
+          <li>"#stock AC-274"</li>
+          <li>"busco lentes ray-ban"</li>
+          <li>"precios"</li>
+          <li>"horarios"</li>
+          <li>"obra social"</li>
+        </ul>
+      </body>
+    </html>
+  `);
+});
+
+// ==================== FIN RUTA TEMPORAL ====================
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🤖 ${config.personalidad.nombre} funcionando en puerto ${PORT}`);
+  console.log(`📱 Webhook listo para WhatsApp Business API`);
+  console.log(`🧪 Probador disponible en: /probar-bot`);
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🤖 ${config.personalidad.nombre} funcionando en puerto ${PORT}`);
