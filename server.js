@@ -492,7 +492,85 @@ app.get('/probador', (req, res) => {
     </html>
   `);
 });
+// ==================== DEBUG DETALLADO DE GOOGLE SHEETS ====================
 
+app.get('/debug-sheets', async (req, res) => {
+  try {
+    console.log('🐛 INICIANDO DEBUG DETALLADO DE GOOGLE SHEETS...');
+    
+    // 1. Verificar configuración
+    const configCheck = {
+      sheets_id: process.env.GOOGLE_SHEETS_ID ? '✅ Configurado' : '❌ Faltante',
+      service_account: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? '✅ Configurado' : '❌ Faltante',
+      armazones: process.env.SHEETS_ARMAZONES || 'Usando por defecto',
+      lc: process.env.SHEETS_LC || 'No configurado',
+      accesorios: process.env.SHEETS_ACCESORIOS || 'No configurado',
+      liquidos: process.env.SHEETS_LIQUIDOS || 'No configurado'
+    };
+    
+    console.log('🔍 Configuración:', configCheck);
+    
+    // 2. Probar inicialización
+    let initResult;
+    try {
+      await googleSheetsService.initialize();
+      initResult = '✅ Inicialización exitosa';
+    } catch (initError) {
+      initResult = `❌ Error en inicialización: ${initError.message}`;
+    }
+    
+    // 3. Probar cada hoja individualmente
+    const hojas = ['STOCK ARMAZONES 1', 'Stock LC', 'Stock Accesorios', 'Stock Liquidos'];
+    const resultados = {};
+    
+    for (const hoja of hojas) {
+      console.log(`\n🔍 Probando hoja: ${hoja}`);
+      try {
+        const productos = await googleSheetsService.obtenerProductosDeSheet(hoja);
+        resultados[hoja] = {
+          estado: '✅ OK',
+          productos: productos.length,
+          primeros: productos.slice(0, 2), // Primeros 2 para ejemplo
+          error: null
+        };
+        console.log(`✅ ${hoja}: ${productos.length} productos`);
+      } catch (error) {
+        resultados[hoja] = {
+          estado: '❌ ERROR',
+          productos: 0,
+          primeros: [],
+          error: error.message
+        };
+        console.log(`❌ ${hoja}: ${error.message}`);
+      }
+    }
+    
+    // 4. Probar búsqueda específica
+    console.log('\n🔍 Probando búsqueda por código...');
+    let busquedaResult;
+    try {
+      const producto = await googleSheetsService.buscarPorCodigo('AC-274');
+      busquedaResult = producto ? '✅ Producto encontrado' : '❌ Producto no encontrado';
+    } catch (error) {
+      busquedaResult = `❌ Error en búsqueda: ${error.message}`;
+    }
+    
+    res.json({
+      configuracion: configCheck,
+      inicializacion: initResult,
+      hojas: resultados,
+      busqueda: busquedaResult,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ ERROR en debug:', error);
+    res.json({ 
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🤖 ${config.personalidad.nombre} funcionando en puerto ${PORT}`);
