@@ -75,7 +75,13 @@ async function procesarMensaje(mensaje, contexto, senderId) {
     respuesta = "💲 *Tenemos armazones desde $8.000 hasta $45.000*\n\nLos precios varían según marca y material.\n\n¿Te interesa alguna marca específica?";
 
   } else if (messageLower.includes('marca')) {
-    respuesta = "👓 *Trabajamos con estas marcas:*\n\n• Ray-Ban\n• Oakley\n• Vulk\n• Carter\n• Sarkany\n• Y muchas más!\n\n¿Te interesa alguna?";
+    const productos = await googleSheetsService.obtenerTodosProductos();
+    const marcas = [...new Set(productos.map(p => p.marca).filter(m => m))].sort();
+    const marcasMostrar = marcas.slice(0, 10);
+    
+    respuesta = `👓 *Algunas de las marcas que trabajamos:*\n\n${marcasMostrar.map(m => `• ${m}`).join('\n')}`;
+    if (marcas.length > 10) respuesta += `\n\n...y ${marcas.length - 10} marcas más.`;
+    respuesta += `\n\n¿Te interesa alguna marca en particular?`;
 
   } else if (messageLower.includes('obra social')) {
     respuesta = `🏥 *Obras Sociales que aceptamos:*\n\n${config.obrasSociales.map(os => `• ${os}`).join('\n')}\n\n💡 *Necesitás receta médica actualizada.*`;
@@ -86,12 +92,24 @@ async function procesarMensaje(mensaje, contexto, senderId) {
   } else if (messageLower.includes('horario')) {
     respuesta = `⏰ *Horarios de atención:*\n\n${config.horarios.regular}\n\n📍 Serrano 684, Villa Crespo`;
 
-  } else if (messageLower.includes('gracias')) {
+  } else if (messageLower.includes('lente de contacto') || messageLower.includes('lentes de contacto') || messageLower.includes('lentilla')) {
+    const marcasLC = await googleSheetsService.obtenerMarcasLC();
+    respuesta = `👁️  *¡Sí! Trabajamos con lentes de contacto* ✅\n\n📋 *Marcas disponibles:*\n${marcasLC.map(m => `• ${m}`).join('\n')}\n\n💡 *Requisitos:*\n• Receta oftalmológica actualizada (obligatoria)\n• Adaptación con profesional\n\n⏰ *Horario de adaptación:* ${config.horarios.adaptacionLC}\n\n¿Qué marca te interesa o ya usás alguna?`;
+
+  } else if (messageLower.includes('líquido') || messageLower.includes('liquido') || messageLower.includes('solución') || messageLower.includes('solucion')) {
+    const liquidos = await googleSheetsService.obtenerLiquidos();
+    respuesta = `🧴 *Líquidos para lentes de contacto:*\n\n📦 *Productos disponibles:*\n${liquidos.map(l => `• ${l.marca} ${l.tamano ? `- ${l.tamano}` : ''}`).join('\n')}\n\n💲 *Precios promocionales* todos los meses\n🎁 *Descuentos* por cantidad\n\n¿Te interesa algún producto en particular?`;
+
+  } else if (messageLower.includes('gracias') || messageLower.includes('thanks') || messageLower.includes('genial')) {
     const emoji = config.personalidad.emojis[Math.floor(Math.random() * config.personalidad.emojis.length)];
-    respuesta = `${emoji} ¡De nada! ¿Necesitás algo más?`;
+    respuesta = `${emoji} ¡De nada! Estoy aquí para ayudarte. ¿Hay algo más en lo que pueda asistirte?`;
+
+  } else if (messageLower.includes('chau') || messageLower.includes('adiós') || messageLower.includes('bye')) {
+    respuesta = `👋 ¡Fue un gusto ayudarte! No dudes en escribirme si tenés más preguntas.\n\n*Hypnottica* - Tu visión, nuestra pasión.`;
 
   } else {
-    respuesta = `🤔 No estoy segura de entender. ¿Podés preguntarme por?\n\n• Stock (#stock CODIGO)\n• Precios\n• Marcas\n• Horarios\n• Obras sociales`;
+    contexto.paso = 0;
+    respuesta = `🤔 No estoy segura de entenderte. ¿Podrías decirlo de otra forma?\n\nPodés preguntarme por:\n• Stock de productos\n• Precios\n• Marcas\n• Horarios\n• Obras sociales\n\nO escribí *"hola"* para ver todas las opciones.`;
   }
 
   contexto.historial.push({ mensaje, respuesta, timestamp: Date.now() });
@@ -207,7 +225,8 @@ app.get('/', (req, res) => {
           <p>
             <a href="/health">Health Check</a> | 
             <a href="/test">Página de Test</a> |
-            <a href="/probador">Probador del Bot</a>
+            <a href="/probador">Probador del Bot</a> |
+            <a href="/test-sheets">Test Google Sheets</a>
           </p>
           <p>✨ Asistente virtual para WhatsApp listo para usar</p>
         </div>
@@ -216,10 +235,9 @@ app.get('/', (req, res) => {
   `);
 });
 
-// ==================== PROBADOR WEB INTERACTIVO ====================
-// ==================== PROBADOR WEB INTERACTIVO ====================
+// ==================== RUTAS DE PRUEBA MEJORADAS ====================
 
-// Ruta POST para el probador - VERSIÓN SIMPLIFICADA QUE FUNCIONA
+// Ruta POST para el probador - VERSIÓN QUE SÍ USA GOOGLE SHEETS
 app.post('/probar-bot', async (req, res) => {
   try {
     const { mensaje } = req.body;
@@ -230,73 +248,34 @@ app.post('/probar-bot', async (req, res) => {
     
     console.log(`🧪 Web Probador - Mensaje: "${mensaje}"`);
     
-    // Procesamiento directo SIN contexto complicado
+    // Usar memoryService para mantener contexto como en WhatsApp
+    const senderId = 'web-user-' + Date.now();
+    let contexto = await memoryService.obtenerContextoUsuario(senderId);
+    
+    console.log(`📝 Contexto: paso ${contexto.paso}`);
+    
+    // Procesar el mensaje con la función REAL
     let respuesta;
-    const messageLower = mensaje.toLowerCase().trim();
-    
-    if (messageLower.includes('obra social')) {
-      respuesta = `🏥 *Obras Sociales que aceptamos:*\n\n${config.obrasSociales.map(os => `• ${os}`).join('\n')}\n\n💡 *Necesitás receta médica actualizada.*`;
-    
-    } else if (messageLower.includes('marca')) {
-      respuesta = "👓 *Trabajamos con estas marcas:*\n\n• Ray-Ban\n• Oakley\n• Vulk\n• Carter\n• Sarkany\n• Y muchas más!\n\n¿Te interesa alguna?";
-    
-    } else if (messageLower.startsWith('#stock') || messageLower.includes('stock')) {
-      const code = messageLower.split(' ')[1];
-      if (code) {
-        const product = await googleSheetsService.buscarPorCodigo(code);
-        if (product) {
-          const stockMsg = product.cantidad > 0 ? `✅ Stock: ${product.cantidad} unidades` : '❌ Sin stock';
-          respuesta = `🏷️  *Código:* ${product.codigo}\n📦  *Categoría:* ${product.categoria}\n👓  *Marca:* ${product.marca}\n🔄  *Modelo:* ${product.modelo}\n🎨  *Color:* ${product.color}\n${stockMsg}\n💲  *Precio:* $${product.precio || 'Consultar'}`;
-        } else {
-          respuesta = "❌ *Producto no encontrado.* Verificá el código o describime lo que buscás.";
-        }
-      } else {
-        respuesta = "❌ Contame el código del modelo que te interesa, por ejemplo: \"#stock AC-274\"";
-      }
-    
-    } else if (messageLower.includes('precio') || messageLower.includes('cuesta')) {
-      respuesta = "💲 *Tenemos armazones desde $8.000 hasta $45.000*\n\nLos precios varían según marca y material.\n\n¿Te interesa alguna marca específica?";
-    
-    } else if (messageLower.includes('busco') || messageLower.includes('quiero') || messageLower.includes('lente')) {
-      respuesta = "🔍 *Buscando en nuestro stock...* Un momento por favor.";
-      const productosEncontrados = await buscarPorDescripcion(mensaje);
-      if (productosEncontrados.length > 0) {
-        respuesta = `🔍 *Encontré estas opciones para vos:*\n\n`;
-        productosEncontrados.forEach((producto, index) => {
-          const stock = producto.cantidad > 0 ? `(Stock: ${producto.cantidad})` : '(Sin stock)';
-          respuesta += `${index + 1}. *${producto.codigo}* - ${producto.marca} ${producto.modelo} - $${producto.precio} ${stock}\n`;
-        });
-        respuesta += `\n*Escribí #stock [código] para más detalles.*`;
-      } else {
-        respuesta = "❌ *No encontré productos que coincidan.* Probá ser más específico.";
-      }
-    
-    } else if (messageLower.includes('direccion') || messageLower.includes('ubicacion')) {
-      respuesta = `📍 *Nuestra dirección:*\nSerrano 684, Villa Crespo, CABA\n\n⏰ *Horarios:* ${config.horarios.regular}`;
-    
-    } else if (messageLower.includes('horario')) {
-      respuesta = `⏰ *Horarios de atención:*\n\n${config.horarios.regular}\n\n📍 Serrano 684, Villa Crespo`;
-    
-    } else if (messageLower.includes('hola') || messageLower === 'hi') {
-      respuesta = `👋 ¡Hola! Soy ${config.personalidad.nombre}, tu asistente de *Hypnottica*. ¿En qué puedo ayudarte hoy?\n\n• Consultar stock\n• Precios\n• Agendar cita\n• Obras sociales\n• Ubicación y horarios`;
-    
-    } else if (messageLower.includes('gracias')) {
-      respuesta = `✨ ¡De nada! Estoy aquí para ayudarte. ¿Hay algo más en lo que pueda asistirte?`;
-    
-    } else {
-      respuesta = `🤔 No estoy segura de entender. ¿Podés preguntarme por?\n\n• Stock (#stock CODIGO)\n• Precios\n• Marcas\n• Horarios\n• Obras sociales`;
+    try {
+      respuesta = await procesarMensaje(mensaje, contexto, senderId);
+      console.log(`🤖 Respuesta REAL generada: ${respuesta.substring(0, 100)}...`);
+    } catch (error) {
+      console.error('❌ Error en procesarMensaje:', error);
+      respuesta = "❌ Ocurrió un error procesando tu mensaje. Por favor, intentá nuevamente.";
     }
     
-    console.log(`🤖 Respuesta generada: ${respuesta.substring(0, 80)}...`);
+    // Guardar contexto actualizado
+    await memoryService.guardarContextoUsuario(senderId, contexto);
     
     res.json({
       mensaje_original: mensaje,
       respuesta: respuesta,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      contexto_paso: contexto.paso
     });
     
   } catch (error) {
-    console.error('Error en probador web:', error);
+    console.error('❌ Error general en probador web:', error);
     res.status(500).json({ 
       error: 'Error interno del servidor',
       respuesta: "❌ Error del servidor. Por favor, recargá la página e intentá nuevamente."
@@ -304,7 +283,71 @@ app.post('/probar-bot', async (req, res) => {
   }
 });
 
-// Ruta GET para la página del probador
+// Ruta para probar Google Sheets directamente
+app.get('/test-sheets', async (req, res) => {
+  try {
+    console.log('🧪 TEST DIRECTO DE GOOGLE SHEETS...');
+    
+    // Probar buscar un código específico
+    const producto = await googleSheetsService.buscarPorCodigo('AC-274');
+    
+    // Probar obtener marcas de LC
+    const marcasLC = await googleSheetsService.obtenerMarcasLC();
+    
+    // Probar obtener líquidos
+    const liquidos = await googleSheetsService.obtenerLiquidos();
+    
+    // Probar obtener todos los productos
+    const todosProductos = await googleSheetsService.obtenerTodosProductos();
+    
+    res.json({
+      producto_ejemplo: producto,
+      marcas_lc: marcasLC,
+      liquidos: liquidos,
+      total_productos: todosProductos.length,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    res.json({ 
+      error: error.message,
+      stack: error.stack 
+    });
+  }
+});
+
+// Ruta de diagnóstico para Google Sheets
+app.get('/diagnostico-sheets', async (req, res) => {
+  try {
+    console.log('🔍 Ejecutando diagnóstico de Google Sheets...');
+    
+    const envCheck = {
+      GOOGLE_SHEETS_ID: process.env.GOOGLE_SHEETS_ID ? '✅ Configurado' : '❌ Faltante',
+      GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? '✅ Configurado' : '❌ Faltante',
+      SHEETS_ARMAZONES: process.env.SHEETS_ARMAZONES || 'Usando valor por defecto',
+      SHEETS_LC: process.env.SHEETS_LC || 'No configurado',
+      SHEETS_ACCESORIOS: process.env.SHEETS_ACCESORIOS || 'No configurado',
+      SHEETS_LIQUIDOS: process.env.SHEETS_LIQUIDOS || 'No configurado'
+    };
+    
+    const diagnostico = await googleSheetsService.diagnosticar();
+    
+    res.json({
+      entorno: envCheck,
+      diagnostico: diagnostico,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    res.json({ 
+      error: error.message,
+      stack: error.stack 
+    });
+  }
+});
+
+// ==================== PROBADOR WEB INTERACTIVO ====================
+
 app.get('/probador', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -363,6 +406,8 @@ app.get('/probador', (req, res) => {
                 <div class="quick-button" onclick="sendQuickMessage('obra social')">🏥 Obras sociales</div>
                 <div class="quick-button" onclick="sendQuickMessage('horarios')">⏰ Horarios</div>
                 <div class="quick-button" onclick="sendQuickMessage('direccion')">📍 Dirección</div>
+                <div class="quick-button" onclick="sendQuickMessage('lentes de contacto')">👁️ Lentes contacto</div>
+                <div class="quick-button" onclick="sendQuickMessage('líquidos')">🧴 Líquidos</div>
             </div>
             
             <div class="input-container">
@@ -447,33 +492,7 @@ app.get('/probador', (req, res) => {
     </html>
   `);
 });
-// Ruta de diagnóstico para Google Sheets (temporal)
-app.get('/diagnostico-sheets', async (req, res) => {
-  try {
-    console.log('🔍 Ejecutando diagnóstico de Google Sheets...');
-    
-    // Verificar variables de entorno
-    const envCheck = {
-      GOOGLE_SHEETS_ID: process.env.GOOGLE_SHEETS_ID ? '✅ Configurado' : '❌ Faltante',
-      GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? '✅ Configurado' : '❌ Faltante',
-      SHEETS_ARMAZONES: process.env.SHEETS_ARMAZONES || 'Usando valor por defecto'
-    };
-    
-    const diagnostico = await googleSheetsService.diagnosticar();
-    
-    res.json({
-      entorno: envCheck,
-      diagnostico: diagnostico,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    res.json({ 
-      error: error.message,
-      stack: error.stack 
-    });
-  }
-});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🤖 ${config.personalidad.nombre} funcionando en puerto ${PORT}`);
