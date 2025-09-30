@@ -447,7 +447,33 @@ app.get('/probador', (req, res) => {
     </html>
   `);
 });
-
+// Ruta de diagnóstico para Google Sheets (temporal)
+app.get('/diagnostico-sheets', async (req, res) => {
+  try {
+    console.log('🔍 Ejecutando diagnóstico de Google Sheets...');
+    
+    // Verificar variables de entorno
+    const envCheck = {
+      GOOGLE_SHEETS_ID: process.env.GOOGLE_SHEETS_ID ? '✅ Configurado' : '❌ Faltante',
+      GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? '✅ Configurado' : '❌ Faltante',
+      SHEETS_ARMAZONES: process.env.SHEETS_ARMAZONES || 'Usando valor por defecto'
+    };
+    
+    const diagnostico = await googleSheetsService.diagnosticar();
+    
+    res.json({
+      entorno: envCheck,
+      diagnostico: diagnostico,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    res.json({ 
+      error: error.message,
+      stack: error.stack 
+    });
+  }
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🤖 ${config.personalidad.nombre} funcionando en puerto ${PORT}`);
