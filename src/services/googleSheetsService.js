@@ -155,30 +155,60 @@ class GoogleSheetsService {
     }
   }
 
-  // Método para diagnóstico
-  async diagnosticar() {
-    try {
-      await this.initialize();
-      console.log('🔍 DIAGNÓSTICO GOOGLE SHEETS:');
-      console.log(`📄 Documento: ${this.doc.title}`);
-      console.log(`📊 Hojas disponibles: ${Object.keys(this.doc.sheetsByTitle).join(', ')}`);
-      
-      const sheetsInfo = {};
-      for (const [title, sheet] of Object.entries(this.doc.sheetsByTitle)) {
-        await sheet.loadHeaderRow(3);
+ // Método para diagnóstico MEJORADO
+async function diagnosticar() {
+  try {
+    await this.initialize();
+    console.log('🔍 DIAGNÓSTICO GOOGLE SHEETS:');
+    console.log(`📄 Documento: ${this.doc.title}`);
+    console.log(`📊 Hojas disponibles: ${Object.keys(this.doc.sheetsByTitle).join(', ')}`);
+    
+    const sheetsInfo = {};
+    for (const [title, sheet] of Object.entries(this.doc.sheetsByTitle)) {
+      try {
+        // Intentar diferentes filas de encabezado
+        let headerRow = 0;
+        let headerValues = [];
+        
+        try {
+          await sheet.loadHeaderRow(1); // Fila 1
+          headerValues = sheet.headerValues || [];
+          headerRow = 1;
+        } catch (e1) {
+          try {
+            await sheet.loadHeaderRow(2); // Fila 2
+            headerValues = sheet.headerValues || [];
+            headerRow = 2;
+          } catch (e2) {
+            try {
+              await sheet.loadHeaderRow(3); // Fila 3
+              headerValues = sheet.headerValues || [];
+              headerRow = 3;
+            } catch (e3) {
+              headerValues = ['No se pudo cargar encabezados'];
+            }
+          }
+        }
+        
         const rows = await sheet.getRows();
         sheetsInfo[title] = {
           filas: rows.length,
-          encabezados: sheet.headerValues || []
+          encabezados: headerValues,
+          fila_encabezado: headerRow,
+          ejemplo_fila: rows[0] ? Object.keys(rows[0]).slice(0, 5) : []
+        };
+        
+      } catch (sheetError) {
+        sheetsInfo[title] = {
+          error: sheetError.message,
+          filas: 'No disponible'
         };
       }
-      
-      return sheetsInfo;
-    } catch (error) {
-      console.error('❌ Error en diagnóstico:', error.message);
-      return { error: error.message };
     }
+    
+    return sheetsInfo;
+  } catch (error) {
+    console.error('❌ Error en diagnóstico:', error.message);
+    return { error: error.message };
   }
 }
-
-module.exports = new GoogleSheetsService();
