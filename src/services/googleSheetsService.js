@@ -58,19 +58,43 @@ class GoogleSheetsService {
       }
       
       console.log(`📥 Cargando datos de: ${sheet.title}`);
-      await sheet.loadHeaderRow(3); // Cargar fila de encabezados
-      const rows = await sheet.getRows();
       
-      console.log(`📊 ${rows.length} filas encontradas en ${sheetTitle}`);
+      // DETECTAR automáticamente la fila de encabezados
+      let headerRow = 1;
+      try {
+        await sheet.loadHeaderRow(1);
+      } catch (e1) {
+        try {
+          await sheet.loadHeaderRow(2);
+          headerRow = 2;
+        } catch (e2) {
+          try {
+            await sheet.loadHeaderRow(3);
+            headerRow = 3;
+          } catch (e3) {
+            console.error(`❌ No se pueden leer encabezados en ${sheetTitle}`);
+            return [];
+          }
+        }
+      }
+      
+      const rows = await sheet.getRows();
+      console.log(`📊 ${rows.length} filas encontradas en ${sheetTitle} (encabezados fila ${headerRow})`);
+      
+      // DEBUG: Mostrar estructura de la primera fila
+      if (rows.length > 0) {
+        console.log('🔍 Estructura de primera fila:', Object.keys(rows[0]));
+      }
       
       const productos = rows.map((row, index) => {
         try {
-          const codigo = row['COD. HYPNO'] || row['Código'] || row['CODIGO'] || '';
-          const marca = row['Marca'] || row['MARCA'] || '';
-          const modelo = row['Modelo'] || row['MODELO'] || '';
-          const color = row['Color'] || row['COLOR'] || '';
-          const cantidad = row['Cantidad'] || row['CANTIDAD'] || row['Stock'] || '0';
-          const precio = row['PRECIO'] || row['Precio'] || row['$'] || '';
+          // Buscar en diferentes nombres de columnas
+          const codigo = row['COD. HYPNO'] || row['Código'] || row['CODIGO'] || row['Código '] || '';
+          const marca = row['Marca'] || row['MARCA'] || row['Marca '] || '';
+          const modelo = row['Modelo'] || row['MODELO'] || row['Modelo '] || '';
+          const color = row['Color'] || row['COLOR'] || row['Color '] || '';
+          const cantidad = row['Cantidad'] || row['CANTIDAD'] || row['Stock'] || row['STOCK'] || '0';
+          const precio = row['PRECIO'] || row['Precio'] || row['$'] || row['Precio '] || '';
           const descripcion = row['Descripciones'] || row['Descripción'] || row['DESCRIPCION'] || '';
           
           // Convertir cantidad a número
@@ -91,12 +115,12 @@ class GoogleSheetsService {
               precio: precio.toString().trim(),
               descripcion: descripcion.trim(),
               categoria: sheetTitle,
-              fila: index + 4 // +2 por header row +2 por index base
+              fila: index + headerRow + 1
             };
           }
           return null;
         } catch (rowError) {
-          console.error(`Error procesando fila ${index + 4}:`, rowError);
+          console.error(`Error procesando fila ${index + headerRow + 1}:`, rowError);
           return null;
         }
       }).filter(producto => producto !== null);
@@ -155,60 +179,122 @@ class GoogleSheetsService {
     }
   }
 
- // Método para diagnóstico MEJORADO
-async function diagnosticar() {
-  try {
-    await this.initialize();
-    console.log('🔍 DIAGNÓSTICO GOOGLE SHEETS:');
-    console.log(`📄 Documento: ${this.doc.title}`);
-    console.log(`📊 Hojas disponibles: ${Object.keys(this.doc.sheetsByTitle).join(', ')}`);
-    
-    const sheetsInfo = {};
-    for (const [title, sheet] of Object.entries(this.doc.sheetsByTitle)) {
-      try {
-        // Intentar diferentes filas de encabezado
-        let headerRow = 0;
-        let headerValues = [];
-        
+  async obtenerMarcasLC() {
+    try {
+      const productos = await this.obtenerProductosDeSheet(config.google.sheets.lentesContacto);
+      const marcas = [...new Set(productos.map(p => p.marca).filter(m => m))].sort();
+      
+      console.log(`👁️ Marcas de LC detectadas: ${marcas.join(', ')}`);
+      return marcas.length > 0 ? marcas : ['Acuvue', 'Air Optix', 'Biofinity', 'FreshLook'];
+    } catch (error) {
+      console.error('Error obteniendo marcas de LC:', error);
+      return ['Acuvue', 'Air Optix', 'Biofinity', 'FreshLook'];
+    }
+  }
+
+  async obtenerLiquidos() {
+    try {
+      const productos = await this.obtenerProductosDeSheet(config.google.sheets.liquidos);
+      const liquidos = productos.map(p => ({
+        marca: p.marca,
+        tamano: p.descripcion || 'Consultar',
+        precio: p.precio
+      }));
+      
+      console.log(`🧴 Líquidos detectados: ${liquidos.length} productos`);
+      return liquidos.length > 0 ? liquidos : [
+        { marca: 'Renu', tamano: '300ml' },
+        { marca: 'Opti-Free', tamano: '300ml' }
+      ];
+    } catch (error) {
+      console.error('Error obteniendo líquidos:', error);
+      return [
+        { marca: 'Renu', tamano: '300ml' },
+        { marca: 'Opti-Free', tamano: '300ml' }
+      ];
+    }
+  }
+
+  async obtenerTodosProductos() {
+    try {
+      const sheets = [
+        config.google.sheets.armazones,
+        config.google.sheets.accesorios,
+        config.google.sheets.lentesContacto,
+        config.google.sheets.liquidos
+      ].filter(Boolean);
+
+      let todosProductos = [];
+      for (const sheet of sheets) {
+        const productos = await this.obtenerProductosDeSheet(sheet);
+        todosProductos = todosProductos.concat(productos);
+      }
+      
+      console.log(`📊 Total de productos en stock: ${todosProductos.length}`);
+      return todosProductos;
+    } catch (error) {
+      console.error('Error obteniendo todos los productos:', error);
+      return [];
+    }
+  }
+
+  // Método para diagnóstico
+  async diagnosticar() {
+    try {
+      await this.initialize();
+      console.log('🔍 DIAGNÓSTICO GOOGLE SHEETS:');
+      console.log(`📄 Documento: ${this.doc.title}`);
+      console.log(`📊 Hojas disponibles: ${Object.keys(this.doc.sheetsByTitle).join(', ')}`);
+      
+      const sheetsInfo = {};
+      for (const [title, sheet] of Object.entries(this.doc.sheetsByTitle)) {
         try {
-          await sheet.loadHeaderRow(1); // Fila 1
-          headerValues = sheet.headerValues || [];
-          headerRow = 1;
-        } catch (e1) {
+          // Intentar diferentes filas de encabezado
+          let headerRow = 0;
+          let headerValues = [];
+          
           try {
-            await sheet.loadHeaderRow(2); // Fila 2
+            await sheet.loadHeaderRow(1); // Fila 1
             headerValues = sheet.headerValues || [];
-            headerRow = 2;
-          } catch (e2) {
+            headerRow = 1;
+          } catch (e1) {
             try {
-              await sheet.loadHeaderRow(3); // Fila 3
+              await sheet.loadHeaderRow(2); // Fila 2
               headerValues = sheet.headerValues || [];
-              headerRow = 3;
-            } catch (e3) {
-              headerValues = ['No se pudo cargar encabezados'];
+              headerRow = 2;
+            } catch (e2) {
+              try {
+                await sheet.loadHeaderRow(3); // Fila 3
+                headerValues = sheet.headerValues || [];
+                headerRow = 3;
+              } catch (e3) {
+                headerValues = ['No se pudo cargar encabezados'];
+              }
             }
           }
+          
+          const rows = await sheet.getRows();
+          sheetsInfo[title] = {
+            filas: rows.length,
+            encabezados: headerValues,
+            fila_encabezado: headerRow,
+            ejemplo_fila: rows[0] ? Object.keys(rows[0]).slice(0, 5) : []
+          };
+          
+        } catch (sheetError) {
+          sheetsInfo[title] = {
+            error: sheetError.message,
+            filas: 'No disponible'
+          };
         }
-        
-        const rows = await sheet.getRows();
-        sheetsInfo[title] = {
-          filas: rows.length,
-          encabezados: headerValues,
-          fila_encabezado: headerRow,
-          ejemplo_fila: rows[0] ? Object.keys(rows[0]).slice(0, 5) : []
-        };
-        
-      } catch (sheetError) {
-        sheetsInfo[title] = {
-          error: sheetError.message,
-          filas: 'No disponible'
-        };
       }
+      
+      return sheetsInfo;
+    } catch (error) {
+      console.error('❌ Error en diagnóstico:', error.message);
+      return { error: error.message };
     }
-    
-    return sheetsInfo;
-  } catch (error) {
-    console.error('❌ Error en diagnóstico:', error.message);
-    return { error: error.message };
   }
 }
+
+module.exports = new GoogleSheetsService();
