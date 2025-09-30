@@ -571,6 +571,60 @@ app.get('/debug-sheets', async (req, res) => {
     });
   }
 });
+// Agregá esta ruta temporal para ver la estructura REAL
+app.get('/debug-estructura', async (req, res) => {
+  try {
+    console.log('🔍 ANALIZANDO ESTRUCTURA REAL DE LAS HOJAS...');
+    
+    await googleSheetsService.initialize();
+    
+    const hojas = ['STOCK ARMAZONES 1', 'Stock LC', 'Stock Accesorios', 'Stock Liquidos'];
+    const estructura = {};
+    
+    for (const hoja of hojas) {
+      console.log(`\n📊 Analizando estructura de: ${hoja}`);
+      const sheet = googleSheetsService.doc.sheetsByTitle[hoja];
+      
+      if (!sheet) {
+        estructura[hoja] = { error: 'Hoja no encontrada' };
+        continue;
+      }
+      
+      // Probar diferentes filas de encabezado
+      let headerRow = 0;
+      let headerValues = [];
+      
+      for (let rowNum of [1, 2, 3]) {
+        try {
+          await sheet.loadHeaderRow(rowNum);
+          headerValues = sheet.headerValues || [];
+          if (headerValues.some(val => val && val.trim() !== '')) {
+            headerRow = rowNum;
+            break;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+      
+      // Leer primeras filas de datos
+      const rows = await sheet.getRows();
+      const primerasFilas = rows.slice(0, 3).map(row => row._rawData);
+      
+      estructura[hoja] = {
+        headerRow,
+        headerValues: headerValues.filter(h => h && h.trim()),
+        totalFilas: rows.length,
+        primerasFilas
+      };
+    }
+    
+    res.json(estructura);
+    
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🤖 ${config.personalidad.nombre} funcionando en puerto ${PORT}`);
