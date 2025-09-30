@@ -44,95 +44,140 @@ class GoogleSheetsService {
     }
   }
 
-  async obtenerProductosDeSheet(sheetTitle) {
-    try {
-      await this.initialize();
-      
-      console.log(`📋 Buscando hoja: "${sheetTitle}"`);
-      const sheet = this.doc.sheetsByTitle[sheetTitle];
-      
-      if (!sheet) {
-        console.error(`❌ No se encontró la hoja: "${sheetTitle}"`);
-        console.log(`📊 Hojas disponibles: ${Object.keys(this.doc.sheetsByTitle).join(', ')}`);
-        return [];
-      }
-      
-      console.log(`📥 Cargando datos de: ${sheet.title}`);
-      
-      // DETECTAR automáticamente la fila de encabezados
-      let headerRow = 1;
-      try {
-        await sheet.loadHeaderRow(1);
-      } catch (e1) {
-        try {
-          await sheet.loadHeaderRow(2);
-          headerRow = 2;
-        } catch (e2) {
-          try {
-            await sheet.loadHeaderRow(3);
-            headerRow = 3;
-          } catch (e3) {
-            console.error(`❌ No se pueden leer encabezados en ${sheetTitle}`);
-            return [];
-          }
-        }
-      }
-      
-      const rows = await sheet.getRows();
-      console.log(`📊 ${rows.length} filas encontradas en ${sheetTitle} (encabezados fila ${headerRow})`);
-      
-      // DEBUG: Mostrar estructura de la primera fila
-      if (rows.length > 0) {
-        console.log('🔍 Estructura de primera fila:', Object.keys(rows[0]));
-      }
-      
-      const productos = rows.map((row, index) => {
-        try {
-          // Buscar en diferentes nombres de columnas
-          const codigo = row['COD. HYPNO'] || row['Código'] || row['CODIGO'] || row['Código '] || '';
-          const marca = row['Marca'] || row['MARCA'] || row['Marca '] || '';
-          const modelo = row['Modelo'] || row['MODELO'] || row['Modelo '] || '';
-          const color = row['Color'] || row['COLOR'] || row['Color '] || '';
-          const cantidad = row['Cantidad'] || row['CANTIDAD'] || row['Stock'] || row['STOCK'] || '0';
-          const precio = row['PRECIO'] || row['Precio'] || row['$'] || row['Precio '] || '';
-          const descripcion = row['Descripciones'] || row['Descripción'] || row['DESCRIPCION'] || '';
-          
-          // Convertir cantidad a número
-          let stock = 0;
-          if (cantidad && cantidad !== '0') {
-            const numero = parseInt(cantidad.toString().replace(/[^\d]/g, ''));
-            stock = isNaN(numero) ? 0 : numero;
-          }
-          
-          // Solo incluir productos con datos válidos
-          if (marca.trim() || modelo.trim() || codigo.trim()) {
-            return {
-              codigo: codigo.trim(),
-              marca: marca.trim(),
-              modelo: modelo.trim(),
-              color: color.trim(),
-              cantidad: stock,
-              precio: precio.toString().trim(),
-              descripcion: descripcion.trim(),
-              categoria: sheetTitle,
-              fila: index + headerRow + 1
-            };
-          }
-          return null;
-        } catch (rowError) {
-          console.error(`Error procesando fila ${index + headerRow + 1}:`, rowError);
-          return null;
-        }
-      }).filter(producto => producto !== null);
-      
-      console.log(`✅ ${productos.length} productos válidos de ${sheetTitle}`);
-      return productos;
-      
-    } catch (error) {
-      console.error(`❌ Error obteniendo productos de ${sheetTitle}:`, error.message);
+ async obtenerProductosDeSheet(sheetTitle) {
+  try {
+    await this.initialize();
+    
+    console.log(`📋 Buscando hoja: "${sheetTitle}"`);
+    const sheet = this.doc.sheetsByTitle[sheetTitle];
+    
+    if (!sheet) {
+      console.error(`❌ No se encontró la hoja: "${sheetTitle}"`);
       return [];
     }
+    
+    console.log(`📥 Cargando datos de: ${sheet.title}`);
+    
+    // CONFIGURACIÓN ESPECÍFICA POR HOJA
+    const configHojas = {
+      'STOCK ARMAZONES 1': { headerRow: 3, columnas: {
+        codigo: 'COD. HYPNO',
+        marca: 'Marca', 
+        modelo: 'Modelo',
+        color: 'Color',
+        cantidad: 'Cantidad',
+        precio: 'PRECIO',
+        descripcion: 'Descripciones',
+        sol_receta: 'Sol/Receta'
+      }},
+      'Stock LC': { headerRow: 2, columnas: {
+        codigo: 'COD. HYPNO',
+        marca: 'Marca',
+        modelo: 'Modelo', 
+        cantidad: 'Cantidad',
+        precio: 'PRECIO'
+      }},
+      'Stock Accesorios': { headerRow: 2, columnas: {
+        codigo: 'COD. HYPNO',
+        marca: 'Marca',
+        modelo: 'Modelo',
+        cantidad: 'Cantidad', 
+        precio: 'PRECIO'
+      }},
+      'Stock Liquidos': { headerRow: 2, columnas: {
+        marca: 'Marca',
+        descripcion: 'Descripciones',
+        cantidad: 'Cantidad',
+        precio: 'PRECIO'
+      }}
+    };
+    
+    // Usar configuración específica o valores por defecto
+    const config = configHojas[sheetTitle] || { 
+      headerRow: 1, 
+      columnas: {
+        codigo: 'COD. HYPNO',
+        marca: 'Marca',
+        modelo: 'Modelo',
+        color: 'Color',
+        cantidad: 'Cantidad',
+        precio: 'PRECIO',
+        descripcion: 'Descripciones'
+      }
+    };
+    
+    console.log(`⚙️  Configuración para ${sheetTitle}: fila ${config.headerRow}`);
+    
+    try {
+      await sheet.loadHeaderRow(config.headerRow);
+    } catch (error) {
+      console.error(`❌ No se pueden leer encabezados en fila ${config.headerRow} de ${sheetTitle}`);
+      return [];
+    }
+    
+    const rows = await sheet.getRows();
+    console.log(`📊 ${rows.length} filas encontradas en ${sheetTitle}`);
+    
+    const productos = rows.map((row, index) => {
+      try {
+        // Usar las columnas configuradas para esta hoja
+        const codigo = row[config.columnas.codigo] || '';
+        const marca = row[config.columnas.marca] || '';
+        const modelo = row[config.columnas.modelo] || '';
+        const color = row[config.columnas.color] || '';
+        const cantidad = row[config.columnas.cantidad] || '0';
+        const precio = row[config.columnas.precio] || '';
+        const descripcion = row[config.columnas.descripcion] || '';
+        const sol_receta = row[config.columnas.sol_receta] || '';
+        
+        // Convertir cantidad a número
+        let stock = 0;
+        if (cantidad && cantidad !== '0') {
+          const numero = parseInt(cantidad.toString().replace(/[^\d]/g, ''));
+          stock = isNaN(numero) ? 0 : numero;
+        }
+        
+        // Solo incluir productos con datos válidos
+        if (marca.trim() || modelo.trim() || codigo.trim()) {
+          return {
+            codigo: codigo.trim(),
+            marca: marca.trim(),
+            modelo: modelo.trim(),
+            color: color.trim(),
+            cantidad: stock,
+            precio: precio.toString().trim(),
+            descripcion: descripcion.trim(),
+            sol_receta: sol_receta.trim(),
+            categoria: sheetTitle,
+            fila: index + config.headerRow + 1
+          };
+        }
+        return null;
+      } catch (rowError) {
+        console.error(`Error procesando fila ${index + 1}:`, rowError);
+        return null;
+      }
+    }).filter(producto => producto !== null);
+    
+    console.log(`✅ ${productos.length} productos válidos de ${sheetTitle}`);
+    
+    // DEBUG: Mostrar algunos productos encontrados
+    if (productos.length > 0) {
+      console.log('🔍 Primeros productos:', productos.slice(0, 3).map(p => ({
+        codigo: p.codigo,
+        marca: p.marca,
+        modelo: p.modelo,
+        stock: p.cantidad
+      })));
+    }
+    
+    return productos;
+    
+  } catch (error) {
+    console.error(`❌ Error obteniendo productos de ${sheetTitle}:`, error.message);
+    return [];
   }
+}
 
   async buscarPorCodigo(codigo) {
     if (!codigo || codigo.trim() === '') {
