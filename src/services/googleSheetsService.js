@@ -78,7 +78,7 @@ class GoogleSheetsService {
   }
 }
 
-// Método específico para Armazones
+// Método específico para Armazones - VERSIÓN CORREGIDA
 async _procesarArmazones(sheet) {
   try {
     await sheet.loadHeaderRow(3);
@@ -87,6 +87,7 @@ async _procesarArmazones(sheet) {
     
     const productos = rows.map((row, index) => {
       try {
+        // MAPEO CORREGIDO basado en tu estructura real
         const codigo = row['COD. HYPNO'] || '';
         const marca = row['Marca'] || '';
         const modelo = row['Modelo'] || '';
@@ -96,13 +97,15 @@ async _procesarArmazones(sheet) {
         const descripcion = row['Descripciones'] || '';
         const sol_receta = row['Sol/Receta'] || '';
         
+        // Convertir cantidad a número
         let stock = 0;
         if (cantidad && cantidad !== '0') {
           const numero = parseInt(cantidad.toString().replace(/[^\d]/g, ''));
           stock = isNaN(numero) ? 0 : numero;
         }
         
-        if (marca.trim() || modelo.trim() || codigo.trim()) {
+        // ✅ CAMBIO IMPORTANTE: Mostrar aunque no tenga código
+        if (marca.trim() || modelo.trim()) {
           return {
             codigo: codigo.trim(),
             marca: marca.trim(),
@@ -124,6 +127,15 @@ async _procesarArmazones(sheet) {
     }).filter(producto => producto !== null);
     
     console.log(`✅ ${productos.length} productos válidos de Armazones`);
+    
+    // DEBUG: Mostrar algunos productos encontrados
+    if (productos.length > 0) {
+      console.log('🔍 Primeros 3 productos REALES encontrados:');
+      productos.slice(0, 3).forEach((p, i) => {
+        console.log(`   ${i + 1}. ${p.marca} ${p.modelo} - Stock: ${p.cantidad} - $${p.precio}`);
+      });
+    }
+    
     return productos;
     
   } catch (error) {
