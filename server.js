@@ -83,145 +83,109 @@ const HYPNOTTICA = {
   }
 };
 
-// ==================== SISTEMA DE INTENCIONES MEJORADO ====================
+// ==================== SISTEMA DE INTENCIONES INTELIGENTE ====================
 class IntentRecognizer {
- detectIntent(mensaje) {
-  const mensajeLower = mensaje.toLowerCase().trim();
-  
-  // 🎯 ORDEN CRÍTICO: Lo más específico primero
-  if (this.esLentesContacto(mensajeLower)) return 'lentes_contacto';
-  if (this.esLiquidos(mensajeLower)) return 'liquidos';
-  if (this.esObraSocial(mensajeLower)) return 'obra_social';
-  if (this.esPrecio(mensajeLower)) return 'precio';
-  if (this.esMarca(mensajeLower)) return 'marca';
-  if (this.esHorario(mensajeLower)) return 'horario';
-  if (this.esDireccion(mensajeLower)) return 'direccion';
-  if (this.esStock(mensajeLower)) return 'stock';
-  if (this.esSaludo(mensajeLower)) return 'saludo';
-  if (this.esDespedida(mensajeLower)) return 'despedida';
-  if (this.esConsultaFrecuente(mensajeLower)) return 'consulta_frecuente';
-  
-  return 'no_entendido';
-}
-  esSaludo(mensaje) {
-    const patronesSaludo = [
-      'hola', 'buenas', 'holis', 'hey', 'qué tal', 'cómo andás', 'cómo andan',
-      'buen día', 'buenas tardes', 'buenas noches', 'qué hacés', 'cómo va',
-      'saludos', 'ey', 'buenas', 'todo bien', 'holaaa', 'hi', 'hello',
-      'buenass', 'que tal', 'como estas', 'cómo estás', 'que onda'
-    ];
-    return patronesSaludo.some(saludo => mensaje.includes(saludo));
+  detectIntent(mensaje) {
+    const mensajeLower = mensaje.toLowerCase().trim();
+    
+    // 🎯 DETECCIÓN POR CONTEXTO - no por palabras exactas
+    if (this.esSaludoContextual(mensajeLower)) return 'saludo';
+    if (this.esLentesContactoContextual(mensajeLower)) return 'lentes_contacto';
+    if (this.esLiquidosContextual(mensajeLower)) return 'liquidos';
+    if (this.esObraSocialContextual(mensajeLower)) return 'obra_social';
+    if (this.esPrecioContextual(mensajeLower)) return 'precio';
+    if (this.esMarcaContextual(mensajeLower)) return 'marca';
+    if (this.esHorarioContextual(mensajeLower)) return 'horario';
+    if (this.esDireccionContextual(mensajeLower)) return 'direccion';
+    if (this.esDespedidaContextual(mensajeLower)) return 'despedida';
+    
+    return 'no_entendido';
   }
 
-  esDespedida(mensaje) {
-    const patronesDespedida = [
-      'chau', 'gracias', 'nos vemos', 'adiós', 'hasta luego', 'hasta pronto',
-      'hasta mañana', 'hasta la próxima', 'cuidate', 'cuídense', 'un saludo',
-      'suerte', 'que estés bien', 'que les vaya bien', 'abrazo', 'besos',
-      'hablamos', 'chaooo', 'bye', 'goodbye', 'adios', 'chao', 'asta luego'
+  esSaludoContextual(mensaje) {
+    // Cualquier combinación que incluya saludo
+    const patrones = [
+      /buen(a|o|as|os)\s+(d[ií]a|tarde|noche)/,
+      /hola/,
+      /buenas/,
+      /qué tal/,
+      /cómo va/,
+      /saludos/,
+      /buen/,
+      /holis/,
+      /hey/,
+      /hi/,
+      /hello/
     ];
-    return patronesDespedida.some(despedida => mensaje.includes(despedida));
+    return patrones.some(patron => patron.test(mensaje));
   }
 
-  esObraSocial(mensaje) {
-  // Evitar que detecte "líquidos" como "obra social"
-  if (mensaje.includes('líquidos') || mensaje.includes('liquidos')) {
-    return false;
-  }
-  
-  const patronesOS = [
-    'obra social', 'prepaga', 'swiss medical', 'medicus', 'osetya', 
-    'construir salud', 'obras sociales', 'cobertura', 'plan médico',
-    'trabajan con', 'aceptan', 'tienen convenio', 'seguro', 'medical'
-  ];
-  return patronesOS.some(palabra => mensaje.includes(palabra));
-}
-  esStock(mensaje) {
-    const patronesStock = [
-      'stock', 'tenes', 'tienen', 'disponible', 'hay', 'queda', 'venden',
-      'conseguir', 'proveen', 'ofrecen', 'trabajan con', 'venden',
-      'qué tienen', 'que tienen', 'que tenes', 'qué tenes'
-    ];
-    return patronesStock.some(palabra => mensaje.includes(palabra));
+  esLentesContactoContextual(mensaje) {
+    // Si menciona lentes de contacto O cualquier variación
+    const palabrasClave = ['lente', 'contacto', 'lentilla', 'pupilente'];
+    const tienePalabraClave = palabrasClave.some(palabra => mensaje.includes(palabra));
+    
+    // Y además tiene alguna palabra de consulta
+    const palabrasConsulta = ['tienen', 'trabajan', 'venden', 'qué', 'que', 'cual', 'cuál', 'info'];
+    const tieneConsulta = palabrasConsulta.some(palabra => mensaje.includes(palabra));
+    
+    // O es una respuesta directa a una pregunta anterior
+    const respuestasDirectas = ['primera vez', 'ya uso', 'nunca use', 'uso actual'];
+    const esRespuestaDirecta = respuestasDirectas.some(respuesta => mensaje.includes(respuesta));
+    
+    return tienePalabraClave && (tieneConsulta || mensaje.length < 20) || esRespuestaDirecta;
   }
 
-  esPrecio(mensaje) {
-    const patronesPrecio = [
-      'precio', 'cuesta', 'cuanto sale', 'valor', 'cuánto', 'precios',
-      'cuestan', 'sale', 'valen', 'cotización', 'presupuesto', 'tarifa',
-      'caro', 'barato', 'económico', 'costó', 'pagué', 'pagar', 'dinero',
-      '$', 'pesos'
-    ];
-    return patronesPrecio.some(palabra => mensaje.includes(palabra));
+  esLiquidosContextual(mensaje) {
+    const palabrasClave = ['líquido', 'liquido', 'solución', 'solucion', 'limpieza'];
+    const tienePalabraClave = palabrasClave.some(palabra => mensaje.includes(palabra));
+    
+    const palabrasConsulta = ['tienen', 'qué', 'que', 'recomienda', 'recomendación'];
+    const tieneConsulta = palabrasConsulta.some(palabra => mensaje.includes(palabra));
+    
+    return tienePalabraClave && (tieneConsulta || mensaje.length < 15);
   }
 
-  esMarca(mensaje) {
-    const patronesMarca = [
-      'marca', 'ray-ban', 'oakley', 'marcas', 'vulk', 'acuvue', 'biofinity',
-      'air optix', 'modelo', 'fabricante', 'empresa', 'brand', 'modelos',
-      'qué marca', 'que marca', 'ray ban', 'air optix'
-    ];
-    return patronesMarca.some(palabra => mensaje.includes(palabra));
+  esObraSocialContextual(mensaje) {
+    const obrasSociales = ['medicus', 'swiss', 'osetya', 'construir'];
+    const tieneOS = obrasSociales.some(os => mensaje.includes(os));
+    
+    const palabrasOS = ['obra social', 'prepaga', 'cobertura', 'plan médico'];
+    const tienePalabraOS = palabrasOS.some(palabra => mensaje.includes(palabra));
+    
+    return tieneOS || tienePalabraOS;
   }
 
-  esHorario(mensaje) {
-    const patronesHorario = [
-      'horario', 'hora', 'abren', 'cierran', 'atención', 'atencion',
-      'cuando abren', 'cuándo abren', 'cuando cierran', 'cuándo cierran',
-      'abierto', 'cerrado', 'funcionan', 'laboral', 'días', 'dias',
-      'lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes',
-      'sábado', 'sabado', 'domingo', 'fin de semana'
-    ];
-    return patronesHorario.some(palabra => mensaje.includes(palabra));
+  esPrecioContextual(mensaje) {
+    const palabrasPrecio = ['precio', 'cuesta', 'valor', 'cuanto', 'cuánto', '$'];
+    return palabrasPrecio.some(palabra => mensaje.includes(palabra));
   }
 
-  esDireccion(mensaje) {
-    const patronesDireccion = [
-      'direccion', 'ubicacion', 'donde estan', 'ubicados', 'dirección',
-      'ubicación', 'dónde', 'donde', 'local', 'negocio', 'tienda',
-      'comercio', 'lugar', 'sitio', 'address', 'location', 'mapa',
-      'como llegar', 'cómo llegar', 'zona', 'barrio', 'villa crespo',
-      'serrano'
-    ];
-    return patronesDireccion.some(palabra => mensaje.includes(palabra));
+  esMarcaContextual(mensaje) {
+    const marcas = ['ray-ban', 'oakley', 'vulk', 'acuvue', 'biofinity', 'air optix', 'renu', 'opti-free'];
+    const tieneMarca = marcas.some(marca => mensaje.includes(marca));
+    
+    const palabrasMarca = ['marca', 'modelo', 'fabricante'];
+    const tienePalabraMarca = palabrasMarca.some(palabra => mensaje.includes(palabra));
+    
+    return tieneMarca || tienePalabraMarca;
   }
 
-  esLentesContacto(mensaje) {
-  const patronesLC = [
-    'lentes de contacto', 'lentillas', 'pupilentes', 'contacto',
-    'lentes contacto', 'lentilla', 'contact lens', 'lentescontacto',
-    'lentillas de contacto', 'pupilente', 'lentescontactos',
-    'lentes de contactos', 'lentillas contacto', 'lentescontact',
-    'qué lentes de contacto', 'que lentes de contacto', 'lentes contacto tienen',
-    'lentillas tienen', 'contactos tienen', 'tienen lentes de contacto',
-    'tienen lentillas', 'venden lentes de contacto', 'venden contactos'
-  ];
-  return patronesLC.some(palabra => mensaje.includes(palabra));
-}
-  esLiquidos(mensaje) {
-    const patronesLiquidos = [
-      'líquido', 'liquido', 'solucion', 'solución', 'liquidos', 'líquidos',
-      'soluciones', 'producto limpieza', 'limpieza lentes', 'limpiar',
-      'limpiador', 'humectante', 'gotas', 'eye drops', 'solution',
-      'qué líquido', 'que liquido', 'líquidos tienen', 'liquidos tienen',
-      'solucion tienen', 'solución tienen', 'recomendación líquido',
-      'recomendacion liquido'
-    ];
-    return patronesLiquidos.some(palabra => mensaje.includes(palabra));
+  esHorarioContextual(mensaje) {
+    const palabrasHorario = ['horario', 'hora', 'abren', 'cierran', 'atención', 'cuando'];
+    return palabrasHorario.some(palabra => mensaje.includes(palabra));
   }
 
-  esConsultaFrecuente(mensaje) {
-    const patronesConsulta = [
-      'envio', 'envío', 'domicilio', 'financiacion', 'cuota', 'receta',
-      'entrega', 'tiempo', 'demora', 'cuándo', 'cuando', 'forma de pago',
-      'medio de pago', 'tarjeta', 'efectivo', 'transferencia', 'qr',
-      'descuento', 'promo', 'promoción', 'oferta', 'rebaja', 'bonificación',
-      'primera vez', 'nuevo', 'empezar', 'iniciar', 'comenzar'
-    ];
-    return patronesConsulta.some(consulta => mensaje.includes(consulta));
+  esDireccionContextual(mensaje) {
+    const palabrasDireccion = ['direccion', 'ubicacion', 'dónde', 'donde', 'local', 'dirección'];
+    return palabrasDireccion.some(palabra => mensaje.includes(palabra));
+  }
+
+  esDespedidaContextual(mensaje) {
+    const palabrasDespedida = ['chau', 'gracias', 'adiós', 'bye', 'nos vemos', 'hasta luego'];
+    return palabrasDespedida.some(palabra => mensaje.includes(palabra));
   }
 }
-
 // ==================== MANEJADOR DE RESPUESTAS MEJORADO ====================
 class ResponseHandler {
   constructor() {
