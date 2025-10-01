@@ -46,19 +46,10 @@ class GoogleSheetsService {
       }
       
       const rows = await sheet.getRows();
-      return {
-        estado: '✅ OK',
-        productos: rows.length,
-        primeros: rows.slice(0, 3).map(row => row._rawData),
-        error: null
-      };
+      return rows;
     } catch (error) {
-      return {
-        estado: '❌ ERROR',
-        productos: 0,
-        primeros: [],
-        error: error.message
-      };
+      console.error(`❌ Error obteniendo productos de ${hojaNombre}:`, error.message);
+      return [];
     }
   }
 
@@ -68,7 +59,7 @@ class GoogleSheetsService {
       if (!this.initialized) await this.initialize();
       
       // Buscar en armazones
-      const sheet = this.doc.sheetsByTitle['armazones'];
+      const sheet = this.doc.sheetsByTitle['STOCK ARMAZONES 1'];
       const rows = await sheet.getRows();
       
       const producto = rows.find(row => 
@@ -76,7 +67,7 @@ class GoogleSheetsService {
       );
       
       if (producto) {
-        return this.formatearArmazon(producto);
+        return this.formatearProductoCompleto(producto);
       }
       
       return null;
@@ -86,7 +77,21 @@ class GoogleSheetsService {
     }
   }
 
-  // 🎯 FORMATEAR ARMAZÓN (igual que antes)
+  // 🎯 FORMATEAR PRODUCTO COMPLETO
+  formatearProductoCompleto(row) {
+    return {
+      codigo: row['COD.HYPNO'] || 'N/A',
+      marca: row['Marca'] || 'N/A', 
+      modelo: row['Modelo'] || 'N/A',
+      color: this.extraerColor(row['Descripciones'] || ''),
+      precio: parseFloat(row['PRECIO']) || 0,
+      cantidad: parseInt(row['Cantidad']) || 0,
+      categoria: 'Armazón',
+      descripcion: row['Descripciones'] || 'N/A'
+    };
+  }
+
+  // 🎯 FORMATEAR ARMAZÓN (para búsquedas nuevas)
   formatearArmazon(row) {
     return {
       tipo: 'armazon',
@@ -101,12 +106,25 @@ class GoogleSheetsService {
     };
   }
 
+  // 🟢 EXTRAER COLOR DE DESCRIPCIÓN
+  extraerColor(descripcion) {
+    const colores = ['negro', 'blanco', 'oro', 'plateado', 'azul', 'rojo', 'verde', 'rosa', 'marrón'];
+    const descLower = descripcion.toLowerCase();
+    
+    for (const color of colores) {
+      if (descLower.includes(color)) {
+        return color.charAt(0).toUpperCase() + color.slice(1);
+      }
+    }
+    return 'Varios';
+  }
+
   // 👁️ OBTENER MARCAS LC
   async obtenerMarcasLC() {
     try {
       if (!this.initialized) await this.initialize();
       
-      const sheet = this.doc.sheetsByTitle['stock lc'];
+      const sheet = this.doc.sheetsByTitle['Stock LC'];
       if (!sheet) return ['Acuvue', 'Biofinity', 'Air Optix'];
       
       const rows = await sheet.getRows();
@@ -120,6 +138,7 @@ class GoogleSheetsService {
       
       return Array.from(marcas).filter(m => m && m !== 'Marca');
     } catch (error) {
+      console.error('❌ Error obteniendo marcas LC:', error.message);
       return ['Acuvue', 'Biofinity', 'Air Optix'];
     }
   }
@@ -129,19 +148,20 @@ class GoogleSheetsService {
     try {
       if (!this.initialized) await this.initialize();
       
-      const sheet = this.doc.sheetsByTitle['stock liquidos'];
-      if (!sheet) return [{ marca: 'Renu', tamaño: '300ml', disponible: true }];
+      const sheet = this.doc.sheetsByTitle['Stock Liquidos'];
+      if (!sheet) return [{ marca: 'Renu', tamano: '300ml', disponible: true }];
       
       const rows = await sheet.getRows();
       const liquidos = rows.map(row => ({
         marca: row['Marca'] || row['__EMPTY_1'],
-        tamaño: row['Tamaño en ml'] || row['__EMPTY_2'],
+        tamano: row['Tamaño en ml'] || row['__EMPTY_2'] || '250ml',
         disponible: true
       })).filter(l => l.marca && l.marca !== 'Marca');
       
-      return liquidos.length > 0 ? liquidos : [{ marca: 'Renu', tamaño: '300ml', disponible: true }];
+      return liquidos.length > 0 ? liquidos : [{ marca: 'Renu', tamano: '300ml', disponible: true }];
     } catch (error) {
-      return [{ marca: 'Renu', tamaño: '300ml', disponible: true }];
+      console.error('❌ Error obteniendo líquidos:', error.message);
+      return [{ marca: 'Renu', tamano: '300ml', disponible: true }];
     }
   }
 
@@ -159,7 +179,7 @@ class GoogleSheetsService {
       
       // Buscar por descripción en armazones
       if (!this.initialized) await this.initialize();
-      const sheet = this.doc.sheetsByTitle['armazones'];
+      const sheet = this.doc.sheetsByTitle['STOCK ARMAZONES 1'];
       const rows = await sheet.getRows();
       
       const productos = rows.filter(row => {
@@ -192,7 +212,7 @@ class GoogleSheetsService {
         return {
           tipo: 'liquido',
           ...liquido,
-          mensaje: `Tenemos líquido *${liquido.marca}* de *${liquido.tamaño}* disponible.`
+          mensaje: `Tenemos líquido *${liquido.marca}* de *${liquido.tamano}* disponible.`
         };
       }
       
@@ -213,6 +233,26 @@ class GoogleSheetsService {
     }
   }
 
+  // 🟢 MÉTODO QUE server.js NECESITA - OBTENER TODOS LOS PRODUCTOS
+  async obtenerTodosProductos() {
+    try {
+      if (!this.initialized) await this.initialize();
+      
+      const sheet = this.doc.sheetsByTitle['STOCK ARMAZONES 1'];
+      const rows = await sheet.getRows();
+      
+      return rows.map(row => this.formatearProductoCompleto(row));
+    } catch (error) {
+      console.error('Error obteniendo todos los productos:', error);
+      return [];
+    }
+  }
+
+  // 🟢 MÉTODO diagnosticar() QUE server.js ESPERA
+  async diagnosticar() {
+    return await this.diagnostico();
+  }
+
   // 📊 DIAGNÓSTICO COMPATIBLE
   async diagnostico() {
     try {
@@ -222,7 +262,22 @@ class GoogleSheetsService {
       const resultadoHojas = {};
       
       for (const hoja of hojas) {
-        resultadoHojas[hoja] = await this.obtenerProductosDeSheet(hoja);
+        try {
+          const productos = await this.obtenerProductosDeSheet(hoja);
+          resultadoHojas[hoja] = {
+            estado: '✅ OK',
+            productos: productos.length,
+            primeros: productos.slice(0, 2),
+            error: null
+          };
+        } catch (error) {
+          resultadoHojas[hoja] = {
+            estado: '❌ ERROR',
+            productos: 0,
+            primeros: [],
+            error: error.message
+          };
+        }
       }
       
       // Probar búsqueda
@@ -267,50 +322,5 @@ class GoogleSheetsService {
     }
   }
 }
-  // 🟢 MÉTODOS ADICIONALES QUE server.js NECESITA
-  async obtenerTodosProductos() {
-    try {
-      if (!this.initialized) await this.initialize();
-      
-      const sheet = this.doc.sheetsByTitle['STOCK ARMAZONES 1'];
-      const rows = await sheet.getRows();
-      
-      return rows.map(row => this.formatearProductoCompleto(row));
-    } catch (error) {
-      console.error('Error obteniendo todos los productos:', error);
-      return [];
-    }
-  }
 
-  // 🟢 FORMATEAR PRODUCTO COMPLETO (para obtenerTodosProductos)
-  formatearProductoCompleto(row) {
-    return {
-      codigo: row['COD.HYPNO'] || 'N/A',
-      marca: row['Marca'] || 'N/A', 
-      modelo: row['Modelo'] || 'N/A',
-      color: this.extraerColor(row['Descripciones'] || ''),
-      precio: parseFloat(row['PRECIO']) || 0,
-      cantidad: parseInt(row['Cantidad']) || 0,
-      categoria: 'Armazón',
-      descripcion: row['Descripciones'] || 'N/A'
-    };
-  }
-
-  // 🟢 EXTRAER COLOR DE DESCRIPCIÓN
-  extraerColor(descripcion) {
-    const colores = ['negro', 'blanco', 'oro', 'plateado', 'azul', 'rojo', 'verde', 'rosa', 'marrón'];
-    const descLower = descripcion.toLowerCase();
-    
-    for (const color of colores) {
-      if (descLower.includes(color)) {
-        return color.charAt(0).toUpperCase() + color.slice(1);
-      }
-    }
-    return 'Varios';
-  }
-
-  // 🟢 MÉTODO diagnosticar() QUE server.js ESPERA
-  async diagnosticar() {
-    return await this.diagnostico();
-  }
 module.exports = GoogleSheetsService;
