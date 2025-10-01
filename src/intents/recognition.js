@@ -1,107 +1,125 @@
+// src/intents/recognition.js
+
+const optica = require('../config/optica');
+
 class IntentRecognizer {
-  constructor() {
-    this.saludos = [
-      'hola', 'buenas', 'holis', 'hey', 'qué tal', 'cómo andás', 'cómo andan', 
-      'buen día', 'buenas tardes', 'buenas noches', 'qué hacés', 'cómo va', 
-      'saludos', 'ey', 'buenas', 'todo bien', 'holaaa'
-    ];
-    
-    this.despedidas = [
-      'chau', 'gracias', 'nos vemos', 'adiós', 'hasta luego', 'hasta pronto',
-      'hasta mañana', 'hasta la próxima', 'cuidate', 'cuídense', 'un saludo',
-      'suerte', 'que estés bien', 'que les vaya bien', 'abrazo', 'besos',
-      'hablamos', 'chaooo'
-    ];
-    
-    this.obrasSociales = ['medicus', 'osetya', 'construir salud', 'swiss medical', 'obra social', 'prepaga'];
-    
-    this.productos = [
-      'lentes', 'anteojos', 'gafas', 'espejuelos', 'gafas de sol', 'lentes de sol',
-      'lentes recetados', 'anteojos recetados', 'lentes de aumento', 'lentes graduados',
-      'monturas', 'armazones', 'cristales', 'lentillas', 'lentes de contacto',
-      'pupilentes', 'gafas ópticas', 'gafas de lectura', 'multifocales', 'bifocales',
-      'progresivos', 'lentes para computadora', 'filtro azul', 'lentes de cerca', 'lentes de lejos'
-    ];
+  static detectIntent(message) {
+    const messageLower = message.toLowerCase();
+
+    // Saludos
+    if (this.isGreeting(messageLower)) return 'greeting';
+
+    // Despedidas
+    if (this.isFarewell(messageLower)) return 'farewell';
+
+    // Obras sociales
+    if (this.isHealthInsurance(messageLower)) return 'health_insurance';
+
+    // Precios
+    if (this.isPriceQuery(messageLower)) return 'price_query';
+
+    // Marcas
+    if (this.isBrandQuery(messageLower)) return 'brand_query';
+
+    // Stock por código
+    if (this.isStockCodeQuery(messageLower)) return 'stock_code_query';
+
+    // Búsqueda por descripción
+    if (this.isStockSearchQuery(messageLower)) return 'stock_search_query';
+
+    // Lentes de contacto
+    if (this.isContactLensQuery(messageLower)) return 'contact_lens_query';
+
+    // Líquidos
+    if (this.isLiquidQuery(messageLower)) return 'liquid_query';
+
+    // Horarios
+    if (this.isScheduleQuery(messageLower)) return 'schedule_query';
+
+    // Ubicación
+    if (this.isLocationQuery(messageLower)) return 'location_query';
+
+    // Envíos
+    if (this.isShippingQuery(messageLower)) return 'shipping_query';
+
+    // Financiación
+    if (this.isFinancingQuery(messageLower)) return 'financing_query';
+
+    // Consultas frecuentes
+    if (this.isFrequentQuestion(messageLower)) return 'frequent_question';
+
+    // Si no se reconoce, se considera una consulta general
+    return 'general_query';
   }
 
-  detectIntent(mensaje) {
-    const mensajeLower = mensaje.toLowerCase();
-    
-    // 1. Saludos
-    if (this.saludos.some(s => mensajeLower.includes(s))) {
-      return 'saludo';
-    }
-    
-    // 2. Despedidas
-    if (this.despedidas.some(d => mensajeLower.includes(d))) {
-      return 'despedida';
-    }
-    
-    // 3. Obras Sociales
-    if (this.obrasSociales.some(os => mensajeLower.includes(os))) {
-      return 'obra_social';
-    }
-    
-    // 4. Consultas de stock por código
-    if (mensajeLower.includes('#stock') || mensajeLower.startsWith('stock ')) {
-      return 'stock_codigo';
-    }
-    
-    // 5. Búsqueda de productos
-    if (this.productos.some(p => mensajeLower.includes(p)) || 
-        mensajeLower.includes('busco') || 
-        mensajeLower.includes('quiero') || 
-        mensajeLower.includes('tene')) {
-      return 'busqueda_producto';
-    }
-    
-    // 6. Precios
-    if (mensajeLower.includes('precio') || mensajeLower.includes('cuesta') || mensajeLower.includes('cuanto sale')) {
-      return 'precios';
-    }
-    
-    // 7. Horarios
-    if (mensajeLower.includes('horario') || mensajeLower.includes('hora') || mensajeLower.includes('cuando abren')) {
-      return 'horarios';
-    }
-    
-    // 8. Ubicación
-    if (mensajeLower.includes('direccion') || mensajeLower.includes('ubicacion') || mensajeLower.includes('donde estan')) {
-      return 'ubicacion';
-    }
-    
-    // 9. Lentes de contacto
-    if (mensajeLower.includes('lente de contacto') || mensajeLower.includes('lentes de contacto') || 
-        mensajeLower.includes('lentilla') || mensajeLower.includes('contacto')) {
-      return 'lentes_contacto';
-    }
-    
-    // 10. Líquidos
-    if (mensajeLower.includes('líquido') || mensajeLower.includes('liquido') || 
-        mensajeLower.includes('solución') || mensajeLower.includes('solucion')) {
-      return 'liquidos';
-    }
-    
-    // 11. Marcas
-    if (mensajeLower.includes('marca')) {
-      return 'marcas';
-    }
-    
-    return 'desconocido';
+  static isGreeting(message) {
+    return optica.saludos.comunes.some(saludo => message.includes(saludo));
   }
 
-  extractCodigo(mensaje) {
-    const match = mensaje.match(/#stock\s+(\S+)/i) || mensaje.match(/stock\s+(\S+)/i);
-    return match ? match[1] : null;
+  static isFarewell(message) {
+    return optica.saludos.despedidas.some(despedida => message.includes(despedida));
   }
 
-  extractObraSocial(mensaje) {
-    for (const os of this.obrasSociales) {
-      if (mensaje.toLowerCase().includes(os)) {
-        return os;
-      }
-    }
-    return null;
+  static isHealthInsurance(message) {
+    return optica.obrasSociales.aceptadas.some(os => message.includes(os.toLowerCase())) || 
+           message.includes('obra social') || 
+           message.includes('prepaga');
+  }
+
+  static isPriceQuery(message) {
+    const priceWords = ['precio', 'cuesta', 'cuánto sale', 'valor', 'costo'];
+    return priceWords.some(word => message.includes(word));
+  }
+
+  static isBrandQuery(message) {
+    const brandWords = ['marca', 'marcas', 'trabajan con', 'qué marcas'];
+    return brandWords.some(word => message.includes(word));
+  }
+
+  static isStockCodeQuery(message) {
+    return message.startsWith('#stock') || message.startsWith('stock');
+  }
+
+  static isStockSearchQuery(message) {
+    const searchWords = ['busco', 'quiero', 'tienen', 'disponible', 'modelo', 'armazón', 'anteojo'];
+    return searchWords.some(word => message.includes(word)) && 
+           (message.includes('lente') || message.includes('anteojo') || message.includes('armazón'));
+  }
+
+  static isContactLensQuery(message) {
+    const contactWords = ['lente de contacto', 'lentes de contacto', 'lentilla', 'pupilente'];
+    return contactWords.some(word => message.includes(word));
+  }
+
+  static isLiquidQuery(message) {
+    const liquidWords = ['líquido', 'liquido', 'solución', 'solucion'];
+    return liquidWords.some(word => message.includes(word));
+  }
+
+  static isScheduleQuery(message) {
+    const scheduleWords = ['horario', 'hora', 'cuándo abren', 'cuándo cierran'];
+    return scheduleWords.some(word => message.includes(word));
+  }
+
+  static isLocationQuery(message) {
+    const locationWords = ['dirección', 'direccion', 'ubicación', 'ubicacion', 'dónde están', 'donde estan'];
+    return locationWords.some(word => message.includes(word));
+  }
+
+  static isShippingQuery(message) {
+    const shippingWords = ['envío', 'envio', 'domicilio', 'enviar', 'mandar'];
+    return shippingWords.some(word => message.includes(word));
+  }
+
+  static isFinancingQuery(message) {
+    const financingWords = ['cuota', 'financiación', 'financiacion', 'tarjeta', 'crédito', 'credito'];
+    return financingWords.some(word => message.includes(word));
+  }
+
+  static isFrequentQuestion(message) {
+    const frequentWords = ['qué', 'que', 'cómo', 'como', 'cuándo', 'cuando', 'dónde', 'donde', 'por qué', 'porque'];
+    return frequentWords.some(word => message.includes(word)) && 
+           (message.includes('?') || message.includes('¿'));
   }
 }
 
