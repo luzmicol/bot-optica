@@ -4,11 +4,12 @@ class GoogleSheetsService {
   constructor() {
     this.doc = null;
     this.initialized = false;
+    this.usingRealData = false;
   }
 
   async initialize() {
     try {
-      console.log('🔧 Inicializando Google Sheets...');
+      console.log('🔧 INICIANDO CONEXIÓN A GOOGLE SHEETS REAL...');
       
       const sheetId = process.env.GOOGLE_SHEETS_ID;
       if (!sheetId) {
@@ -17,194 +18,218 @@ class GoogleSheetsService {
 
       this.doc = new GoogleSpreadsheet(sheetId);
       
-      // 🟢 MODO SUPER SIMPLE - Sin autenticación (sheet público)
-      // NO usar useApiKey() ni useServiceAccountAuth()
-      console.log('🟡 Intentando acceso público...');
+      // 🟢 USAR SERVICE ACCOUNT PARA DATOS REALES
+      if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+        try {
+          console.log('🔑 Autenticando con Service Account...');
+          const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+          await this.doc.useServiceAccountAuth(credentials);
+          console.log('✅ Service Account autenticado');
+        } catch (authError) {
+          console.error('❌ Error Service Account:', authError.message);
+          throw new Error('No se pudo autenticar con Google Sheets');
+        }
+      } else {
+        throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON no configurado');
+      }
       
       await this.doc.loadInfo();
       this.initialized = true;
-      console.log('✅ Google Sheets inicializado en modo público');
+      this.usingRealData = true;
+      console.log('✅ CONECTADO A GOOGLE SHEETS - DATOS REALES');
+      console.log('📊 Hojas disponibles:', Object.keys(this.doc.sheetsByTitle));
       return true;
     } catch (error) {
-      console.error('❌ Error inicializando:', error.message);
-      // No lanzar error, dejar que funcione con datos de ejemplo
-      return true;
+      console.error('❌ ERROR CRÍTICO:', error.message);
+      this.usingRealData = false;
+      throw error; // 🚨 Lanzar error para saber que falló
     }
   }
 
-  // 🟢 MÉTODO COMPATIBLE - Siempre retorna datos de ejemplo
+  // 🟢 OBTENER PRODUCTOS DE HOJA REAL
   async obtenerProductosDeSheet(hojaNombre) {
     try {
-      console.log(`📊 Obteniendo productos de: ${hojaNombre}`);
+      if (!this.initialized) await this.initialize();
       
-      if (!this.initialized) {
-        await this.initialize();
-      }
-      
-      // Si falla la inicialización, retornar ejemplo
-      if (!this.initialized || !this.doc) {
-        console.log('🟡 Usando datos de ejemplo');
-        return this.datosEjemploArmazones();
-      }
-      
+      console.log(`📊 Leyendo hoja real: ${hojaNombre}`);
       const sheet = this.doc.sheetsByTitle[hojaNombre];
+      
       if (!sheet) {
-        console.log(`❌ No se encuentra hoja: ${hojaNombre}`);
-        return this.datosEjemploArmazones();
+        console.log(`❌ Hoja no encontrada: ${hojaNombre}`);
+        return [];
       }
       
       const rows = await sheet.getRows();
-      console.log(`✅ ${hojaNombre}: ${rows.length} filas encontradas`);
+      console.log(`✅ ${hojaNombre}: ${rows.length} filas reales encontradas`);
+      
+      // 🎯 DEBUG: Mostrar primeras filas
+      if (rows.length > 0) {
+        console.log('🔍 Primeras filas:', rows.slice(0, 2).map(row => row._rawData));
+      }
       
       return rows;
     } catch (error) {
-      console.error(`❌ Error en ${hojaNombre}:`, error.message);
-      return this.datosEjemploArmazones();
+      console.error(`❌ Error leyendo ${hojaNombre}:`, error.message);
+      return [];
     }
   }
 
-  // 🟢 BUSCAR POR CÓDIGO - Siempre funciona
+  // 🟢 BUSCAR POR CÓDIGO EN DATOS REALES
   async buscarPorCodigo(codigo) {
     try {
-      console.log(`🔍 Buscando código: ${codigo}`);
+      console.log(`🔍 Buscando código REAL: ${codigo}`);
       
-      if (!this.initialized) {
-        await this.initialize();
+      if (!this.initialized) await this.initialize();
+      
+      const sheet = this.doc.sheetsByTitle['STOCK ARMAZONES 1'];
+      if (!sheet) {
+        throw new Error('No se encuentra hoja de armazones');
       }
       
-      // Si hay sheets reales, buscar ahí
-      if (this.initialized && this.doc) {
-        const sheet = this.doc.sheetsByTitle['STOCK ARMAZONES 1'];
-        if (sheet) {
-          const rows = await sheet.getRows();
-          const producto = rows.find(row => 
-            row['COD.HYPNO']?.toString().toLowerCase() === codigo.toLowerCase()
-          );
-          if (producto) {
-            console.log('✅ Producto encontrado en sheets');
-            return this.formatearProductoCompleto(producto);
-          }
-        }
+      const rows = await sheet.getRows();
+      console.log(`📦 Buscando en ${rows.length} productos reales...`);
+      
+      // Buscar en diferentes columnas posibles
+      const producto = rows.find(row => {
+        const codigoHypno = row['COD.HYPNO'] || row['__EMPTY_6'];
+        return codigoHypno?.toString().toLowerCase() === codigo.toLowerCase();
+      });
+      
+      if (producto) {
+        console.log('✅ PRODUCTO REAL ENCONTRADO:', producto._rawData);
+        return this.formatearProductoReal(producto);
       }
       
-      // Si no encuentra, usar ejemplo
-      console.log('🟡 Usando datos de ejemplo para código:', codigo);
-      return this.ejemploPorCodigo(codigo);
+      console.log('❌ Producto no encontrado en datos reales');
+      return null;
       
     } catch (error) {
-      console.error('❌ Error buscando código:', error.message);
-      return this.ejemploPorCodigo(codigo);
+      console.error('❌ Error buscando código real:', error.message);
+      return null;
     }
   }
 
-  // 🟢 OBTENER MARCAS LC - Siempre funciona
+  // 🟢 FORMATEAR PRODUCTO REAL
+  formatearProductoReal(row) {
+    const producto = {
+      codigo: row['COD.HYPNO'] || row['__EMPTY_6'] || 'N/A',
+      marca: row['Marca'] || row['__EMPTY_2'] || 'N/A',
+      modelo: row['Modelo'] || row['__EMPTY_7'] || 'N/A',
+      color: this.extraerColor(row['Descripciones'] || row['__EMPTY_19'] || ''),
+      precio: parseFloat(row['PRECIO'] || row['__EMPTY_15'] || 0),
+      cantidad: parseInt(row['Cantidad'] || row['__EMPTY_8'] || 0),
+      categoria: 'Armazón',
+      descripcion: row['Descripciones'] || row['__EMPTY_19'] || 'N/A'
+    };
+    
+    console.log('📋 Producto real formateado:', producto);
+    return producto;
+  }
+
+  // 🟢 OBTENER MARCAS LC REALES
   async obtenerMarcasLC() {
     try {
-      console.log('👁️ Obteniendo marcas LC...');
+      if (!this.initialized) await this.initialize();
       
-      if (!this.initialized) {
-        await this.initialize();
+      const sheet = this.doc.sheetsByTitle['Stock LC'];
+      if (!sheet) {
+        console.log('❌ No se encuentra hoja Stock LC');
+        return [];
       }
       
-      if (this.initialized && this.doc) {
-        const sheet = this.doc.sheetsByTitle['Stock LC'];
-        if (sheet) {
-          const rows = await sheet.getRows();
-          const marcas = new Set();
-          rows.forEach(row => {
-            if (row['__EMPTY_1']) marcas.add(row['__EMPTY_1']);
-            if (row['__EMPTY_2']) marcas.add(row['__EMPTY_2']);
-            if (row['__EMPTY_3']) marcas.add(row['__EMPTY_3']);
-          });
-          const marcasArray = Array.from(marcas).filter(m => m && m !== 'Marca');
-          if (marcasArray.length > 0) {
-            console.log('✅ Marcas LC encontradas:', marcasArray);
-            return marcasArray;
-          }
+      const rows = await sheet.getRows();
+      console.log(`👁️ Buscando marcas LC en ${rows.length} filas...`);
+      
+      const marcas = new Set();
+      
+      rows.forEach((row, index) => {
+        // Buscar en diferentes columnas
+        const marcaB = row['__EMPTY_1'] || row['Marca'];
+        const marcaC = row['__EMPTY_2'];
+        const marcaD = row['__EMPTY_3'];
+        
+        if (marcaB && marcaB.trim() !== '' && marcaB !== 'Marca') {
+          console.log(`🏷️ Marca LC encontrada en B: ${marcaB}`);
+          marcas.add(marcaB.trim());
         }
-      }
+        if (marcaC && marcaC.trim() !== '' && marcaC !== 'Marca') {
+          console.log(`🏷️ Marca LC encontrada en C: ${marcaC}`);
+          marcas.add(marcaC.trim());
+        }
+        if (marcaD && marcaD.trim() !== '' && marcaD !== 'Marca') {
+          console.log(`🏷️ Marca LC encontrada en D: ${marcaD}`);
+          marcas.add(marcaD.trim());
+        }
+      });
       
-      // Datos de ejemplo
-      console.log('🟡 Usando marcas LC de ejemplo');
-      return ['Acuvue', 'Biofinity', 'Air Optix', 'Dailies', 'FreshLook'];
+      const marcasArray = Array.from(marcas);
+      console.log(`✅ Marcas LC reales encontradas: ${marcasArray.length}`, marcasArray);
       
+      return marcasArray;
     } catch (error) {
-      console.error('❌ Error marcas LC:', error.message);
-      return ['Acuvue', 'Biofinity', 'Air Optix'];
+      console.error('❌ Error obteniendo marcas LC reales:', error.message);
+      return [];
     }
   }
 
-  // 🟢 OBTENER LÍQUIDOS - Siempre funciona
+  // 🟢 OBTENER LÍQUIDOS REALES
   async obtenerLiquidos() {
     try {
-      console.log('💧 Obteniendo líquidos...');
+      if (!this.initialized) await this.initialize();
       
-      if (!this.initialized) {
-        await this.initialize();
+      const sheet = this.doc.sheetsByTitle['Stock Liquidos'];
+      if (!sheet) {
+        console.log('❌ No se encuentra hoja Stock Liquidos');
+        return [];
       }
       
-      if (this.initialized && this.doc) {
-        const sheet = this.doc.sheetsByTitle['Stock Liquidos'];
-        if (sheet) {
-          const rows = await sheet.getRows();
-          const liquidos = rows.map(row => ({
-            marca: row['Marca'] || row['__EMPTY_1'],
-            tamano: row['Tamaño en ml'] || row['__EMPTY_2'] || '250ml',
-            disponible: true
-          })).filter(l => l.marca && l.marca !== 'Marca');
-          
-          if (liquidos.length > 0) {
-            console.log('✅ Líquidos encontrados:', liquidos.length);
-            return liquidos;
-          }
+      const rows = await sheet.getRows();
+      console.log(`💧 Buscando líquidos en ${rows.length} filas...`);
+      
+      const liquidos = rows.map(row => {
+        const liquido = {
+          marca: row['Marca'] || row['__EMPTY_1'],
+          tamano: row['Tamaño en ml'] || row['__EMPTY_2'],
+          disponible: true
+        };
+        
+        if (liquido.marca && liquido.marca !== 'Marca') {
+          console.log(`🧴 Líquido real: ${liquido.marca} ${liquido.tamano}`);
         }
-      }
+        
+        return liquido;
+      }).filter(l => l.marca && l.marca !== 'Marca');
       
-      // Datos de ejemplo
-      console.log('🟡 Usando líquidos de ejemplo');
-      return [
-        { marca: 'Renu', tamano: '300ml', disponible: true },
-        { marca: 'Opti-Free', tamano: '360ml', disponible: true },
-        { marca: 'BioTrue', tamano: '300ml', disponible: true }
-      ];
-      
+      console.log(`✅ Líquidos reales encontrados: ${liquidos.length}`);
+      return liquidos;
     } catch (error) {
-      console.error('❌ Error líquidos:', error.message);
-      return [{ marca: 'Renu', tamano: '300ml', disponible: true }];
+      console.error('❌ Error obteniendo líquidos reales:', error.message);
+      return [];
     }
   }
 
-  // 🟢 OBTENER TODOS LOS PRODUCTOS - Siempre funciona
+  // 🟢 OBTENER TODOS LOS PRODUCTOS REALES
   async obtenerTodosProductos() {
     try {
-      console.log('📦 Obteniendo todos los productos...');
+      if (!this.initialized) await this.initialize();
       
       const productos = await this.obtenerProductosDeSheet('STOCK ARMAZONES 1');
-      
-      // Si son datos reales, formatearlos
-      if (productos.length > 0 && productos[0]._rawData) {
-        return productos.map(row => this.formatearProductoCompleto(row));
-      }
-      
-      // Si son datos de ejemplo, retornarlos directamente
-      return productos;
-      
+      return productos.map(row => this.formatearProductoReal(row));
     } catch (error) {
-      console.error('❌ Error todos los productos:', error.message);
-      return this.datosEjemploArmazones();
+      console.error('❌ Error obteniendo todos los productos reales:', error.message);
+      return [];
     }
   }
 
-  // 🟢 DIAGNOSTICAR - Versión que SIEMPRE funciona
+  // 🟢 DIAGNÓSTICO MEJORADO
   async diagnosticar() {
     return await this.diagnostico();
   }
 
   async diagnostico() {
     try {
-      console.log('🔍 Iniciando diagnóstico...');
+      console.log('🔍 INICIANDO DIAGNÓSTICO CON DATOS REALES...');
       
-      // Forzar inicialización
       await this.initialize();
       
       const hojas = ['STOCK ARMAZONES 1', 'Stock LC', 'Stock Accesorios', 'Stock Liquidos'];
@@ -214,153 +239,57 @@ class GoogleSheetsService {
         try {
           const productos = await this.obtenerProductosDeSheet(hoja);
           resultadoHojas[hoja] = {
-            estado: '✅ OK',
+            estado: '✅ OK - DATOS REALES',
             productos: productos.length,
-            primeros: productos.slice(0, 2),
+            primeros: productos.slice(0, 2).map(p => p._rawData),
             error: null
           };
         } catch (error) {
           resultadoHojas[hoja] = {
-            estado: '✅ FUNCIONANDO CON DATOS EJEMPLO',
-            productos: 3, // Siempre retorna datos
+            estado: '❌ ERROR',
+            productos: 0,
             primeros: [],
-            error: null
+            error: error.message
           };
         }
       }
       
-      // Probar búsqueda
+      // Probar búsqueda real
       let busquedaResultado;
       try {
-        const busqueda = await this.buscarPorCodigo('RB1001');
-        busquedaResultado = busqueda ? '✅ BÚSQUEDA FUNCIONANDO' : '✅ BÚSQUEDA CON EJEMPLOS';
+        const busqueda = await this.buscarPorCodigo('AC-274');
+        busquedaResultado = busqueda ? '✅ PRODUCTO REAL ENCONTRADO' : '⚠️ Producto no encontrado (normal)';
       } catch (error) {
-        busquedaResultado = '✅ BÚSQUEDA CON EJEMPLOS';
+        busquedaResultado = `❌ Error en búsqueda: ${error.message}`;
       }
       
       return {
         configuracion: {
           sheets_id: process.env.GOOGLE_SHEETS_ID ? '✅ Configurado' : '❌ Faltante',
-          service_account: '🟡 No necesario',
-          armazones: '✅ FUNCIONANDO',
-          lc: '✅ FUNCIONANDO', 
-          accesorios: '✅ FUNCIONANDO',
-          liquidos: '✅ FUNCIONANDO',
-          modo: '🟢 MODO A PRUEBA DE FALLOS'
+          service_account: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? '✅ Configurado' : '❌ Faltante',
+          usando_datos_reales: this.usingRealData ? '✅ SÍ' : '❌ NO',
+          estado: '🟢 CONECTADO A DATOS REALES'
         },
-        inicializacion: '✅ INICIALIZACIÓN EXITOSA',
+        inicializacion: '✅ INICIALIZACIÓN EXITOSA - DATOS REALES',
         hojas: resultadoHojas,
         busqueda: busquedaResultado,
-        timestamp: new Date().toISOString(),
-        nota: '🔧 El bot funciona con datos reales O de ejemplo automáticamente'
+        timestamp: new Date().toISOString()
       };
       
     } catch (error) {
-      console.error('❌ Error en diagnóstico:', error.message);
+      console.error('❌ ERROR EN DIAGNÓSTICO:', error.message);
       return {
         configuracion: {
           sheets_id: process.env.GOOGLE_SHEETS_ID ? '✅ Configurado' : '❌ Faltante',
-          estado: '🟢 MODO A PRUEBA DE FALLOS ACTIVADO'
+          service_account: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? '✅ Configurado' : '❌ Faltante',
+          estado: '❌ ERROR DE CONEXIÓN'
         },
-        inicializacion: '✅ INICIALIZACIÓN CON EJEMPLOS',
-        hojas: {
-          'STOCK ARMAZONES 1': { estado: '✅ CON DATOS EJEMPLO', productos: 3 },
-          'Stock LC': { estado: '✅ CON DATOS EJEMPLO', productos: 5 },
-          'Stock Accesorios': { estado: '✅ CON DATOS EJEMPLO', productos: 2 },
-          'Stock Liquidos': { estado: '✅ CON DATOS EJEMPLO', productos: 3 }
-        },
-        busqueda: '✅ BÚSQUEDA CON EJEMPLOS',
-        timestamp: new Date().toISOString(),
-        nota: '🎯 EL BOT ESTÁ FUNCIONANDO PERFECTAMENTE'
+        inicializacion: `❌ Error en inicialización: ${error.message}`,
+        hojas: {},
+        busqueda: `❌ Error en búsqueda: ${error.message}`,
+        timestamp: new Date().toISOString()
       };
     }
-  }
-
-  // ==================== DATOS DE EJEMPLO ====================
-  
-  datosEjemploArmazones() {
-    return [
-      {
-        codigo: 'RB1001',
-        marca: 'Ray-Ban',
-        modelo: 'Aviator',
-        color: 'Oro',
-        precio: 15000,
-        cantidad: 5,
-        categoria: 'Armazón',
-        descripcion: 'Lentes de sol clásicos aviator'
-      },
-      {
-        codigo: 'OK2002', 
-        marca: 'Oakley',
-        modelo: 'Holbrook',
-        color: 'Negro',
-        precio: 18000,
-        cantidad: 3,
-        categoria: 'Armazón',
-        descripcion: 'Lentes deportivos Holbrook'
-      },
-      {
-        codigo: 'VK3003',
-        marca: 'Vulk',
-        modelo: 'Wayfarer',
-        color: 'Azul',
-        precio: 12000,
-        cantidad: 8,
-        categoria: 'Armazón', 
-        descripcion: 'Lentes clásicos wayfarer azul'
-      }
-    ];
-  }
-
-  ejemploPorCodigo(codigo) {
-    const ejemplos = {
-      'rb1001': {
-        codigo: 'RB1001',
-        marca: 'Ray-Ban',
-        modelo: 'Aviator',
-        color: 'Oro',
-        precio: 15000,
-        cantidad: 5,
-        categoria: 'Armazón',
-        descripcion: 'Lentes de sol clásicos aviator'
-      },
-      'ok2002': {
-        codigo: 'OK2002',
-        marca: 'Oakley', 
-        modelo: 'Holbrook',
-        color: 'Negro',
-        precio: 18000,
-        cantidad: 3,
-        categoria: 'Armazón',
-        descripcion: 'Lentes deportivos Holbrook'
-      },
-      'ac274': {
-        codigo: 'AC-274',
-        marca: 'Ray-Ban',
-        modelo: 'Clubmaster',
-        color: 'Negro',
-        precio: 16000,
-        cantidad: 4,
-        categoria: 'Armazón',
-        descripcion: 'Lentes estilo clubmaster'
-      }
-    };
-    
-    return ejemplos[codigo.toLowerCase()] || ejemplos['rb1001'];
-  }
-
-  formatearProductoCompleto(row) {
-    return {
-      codigo: row['COD.HYPNO'] || row.codigo || 'N/A',
-      marca: row['Marca'] || row.marca || 'N/A',
-      modelo: row['Modelo'] || row.modelo || 'N/A', 
-      color: this.extraerColor(row['Descripciones'] || row.descripcion || ''),
-      precio: parseFloat(row['PRECIO'] || row.precio) || 0,
-      cantidad: parseInt(row['Cantidad'] || row.cantidad) || 0,
-      categoria: 'Armazón',
-      descripcion: row['Descripciones'] || row.descripcion || 'N/A'
-    };
   }
 
   extraerColor(descripcion) {
