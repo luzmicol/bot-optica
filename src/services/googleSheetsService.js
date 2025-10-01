@@ -267,5 +267,50 @@ class GoogleSheetsService {
     }
   }
 }
+  // 🟢 MÉTODOS ADICIONALES QUE server.js NECESITA
+  async obtenerTodosProductos() {
+    try {
+      if (!this.initialized) await this.initialize();
+      
+      const sheet = this.doc.sheetsByTitle['STOCK ARMAZONES 1'];
+      const rows = await sheet.getRows();
+      
+      return rows.map(row => this.formatearProductoCompleto(row));
+    } catch (error) {
+      console.error('Error obteniendo todos los productos:', error);
+      return [];
+    }
+  }
 
+  // 🟢 FORMATEAR PRODUCTO COMPLETO (para obtenerTodosProductos)
+  formatearProductoCompleto(row) {
+    return {
+      codigo: row['COD.HYPNO'] || 'N/A',
+      marca: row['Marca'] || 'N/A', 
+      modelo: row['Modelo'] || 'N/A',
+      color: this.extraerColor(row['Descripciones'] || ''),
+      precio: parseFloat(row['PRECIO']) || 0,
+      cantidad: parseInt(row['Cantidad']) || 0,
+      categoria: 'Armazón',
+      descripcion: row['Descripciones'] || 'N/A'
+    };
+  }
+
+  // 🟢 EXTRAER COLOR DE DESCRIPCIÓN
+  extraerColor(descripcion) {
+    const colores = ['negro', 'blanco', 'oro', 'plateado', 'azul', 'rojo', 'verde', 'rosa', 'marrón'];
+    const descLower = descripcion.toLowerCase();
+    
+    for (const color of colores) {
+      if (descLower.includes(color)) {
+        return color.charAt(0).toUpperCase() + color.slice(1);
+      }
+    }
+    return 'Varios';
+  }
+
+  // 🟢 MÉTODO diagnosticar() QUE server.js ESPERA
+  async diagnosticar() {
+    return await this.diagnostico();
+  }
 module.exports = GoogleSheetsService;
