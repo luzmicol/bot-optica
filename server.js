@@ -380,26 +380,283 @@ respuestaLiquidos(mensaje, contexto) {
   return "🧴 Tenemos líquidos de varias marcas. ¿Usás alguna marca específica o te recomiendo?";
 }
   continuarConversacion(ultimoTema, mensaje, contexto) {
+  const mensajeLower = mensaje.toLowerCase().trim();
+  
+  // ==================== RESPUESTAS SIMPLES UNIVERSALES ====================
+  if (this.esRespuestaSimpleSi(mensajeLower)) {
     switch (ultimoTema) {
-      case 'obra_social':
-        if (mensaje.includes('si') || mensaje.includes('tengo')) {
-          return "Perfecto 😊 ¿Querés pedir turno o necesitás más info?";
-        }
-        return "¿Tenés alguna obra social en mente o te cuento más?";
-      
       case 'lentes_contacto':
-        if (mensaje.includes('si') || mensaje.includes('uso') || mensaje.includes('actual')) {
-          return "¡Bien! ¿Qué marca usás? Así vemos si tenemos.";
-        }
-        return "¿Te interesa probar o necesitás info de precios?";
-      
+        return "¡Bien! ¿Qué marca usás actualmente?";
+      case 'obra_social':
+        return "Perfecto 😊 ¿Tenés la receta? La vigencia es de 60 días.";
+      case 'liquidos':
+        return "¿Qué marca de líquido usás?";
+      case 'marca':
+        return "¿Te interesa algún modelo en particular?";
       case 'precio':
-        return "¿Te interesa algún producto en particular para darte precio exacto?";
-      
+        return "¿De qué producto querés saber el precio exacto?";
       default:
-        return "¿Necesitás que te ayude con algo más?";
+        return "¿En qué más te puedo ayudar?";
     }
   }
+  
+  if (this.esRespuestaSimpleNo(mensajeLower)) {
+    switch (ultimoTema) {
+      case 'lentes_contacto':
+        return "¡Genial! Te recomiendo empezar con una consulta. ¿Tenés receta oftalmológica?";
+      case 'obra_social':
+        return "¿Te interesa saber sobre precios particulares?";
+      case 'liquidos':
+        return "¿Querés que te recomiende alguna marca?";
+      case 'marca':
+        return "¿Te ayudo a encontrar alguna marca que te guste?";
+      default:
+        return "¿Te ayudo con algo más?";
+    }
+  }
+
+  // ==================== RESPUESTAS ESPECÍFICAS POR TEMA ====================
+  switch (ultimoTema) {
+    case 'lentes_contacto':
+      return this.manejarRespuestaLentesContacto(mensajeLower, contexto);
+    
+    case 'liquidos':
+      return this.manejarRespuestaLiquidos(mensajeLower, contexto);
+    
+    case 'obra_social':
+      return this.manejarRespuestaObraSocial(mensajeLower, contexto);
+    
+    case 'marca':
+      return this.manejarRespuestaMarca(mensajeLower, contexto);
+    
+    case 'precio':
+      return this.manejarRespuestaPrecio(mensajeLower, contexto);
+    
+    case 'horario':
+      return this.manejarRespuestaHorario(mensajeLower, contexto);
+    
+    case 'direccion':
+      return this.manejarRespuestaDireccion(mensajeLower, contexto);
+    
+    default:
+      return "¿Necesitás que te ayude con algo más?";
+  }
+}
+
+// ==================== MANEJADORES ESPECÍFICOS COMPLETOS ====================
+
+manejarRespuestaLentesContacto(mensaje, contexto) {
+  // PRIMERA VEZ / EXPERIENCIA
+  if (this.contieneAlguna(mensaje, ['primera vez', 'nunca use', 'nunca usé', 'empezar', 'iniciar', 'comenzar', 'nuevo'])) {
+    return "🎯 Perfecto para primera vez! Te recomiendo una consulta. ¿Tenés receta oftalmológica actual?";
+  }
+  
+  if (this.contieneAlguna(mensaje, ['ya uso', 'uso actual', 'actualmente', 'habitual', 'experiencia', 'experimentado'])) {
+    return "¡Bien! ¿Qué marca usás actualmente?";
+  }
+
+  // MARCAS DE LENTES DE CONTACTO
+  if (this.contieneAlguna(mensaje, ['acuvue', 'acuvue'])) {
+    return "✅ Tenemos Acuvue. ¿Buscás los diarios, quincenales o mensuales?";
+  }
+  if (this.contieneAlguna(mensaje, ['biofinity', 'biofinity'])) {
+    return "✅ Tenemos Biofinity. Son mensuales, muy cómodos. ¿Te interesan?";
+  }
+  if (this.contieneAlguna(mensaje, ['air optix', 'air optix'])) {
+    return "✅ Tenemos Air Optix. ¿Para miopía, astigmatismo o presbicia?";
+  }
+
+  // TIPOS DE LENTES
+  if (this.contieneAlguna(mensaje, ['diario', 'diarios', 'desechable', 'desechables'])) {
+    return "📅 Los diarios son los más prácticos. No necesitan mantenimiento. ¿Para qué uso los querés?";
+  }
+  if (this.contieneAlguna(mensaje, ['mensual', 'mensuales', 'mensuales'])) {
+    return "📅 Los mensuales son más económicos a largo plazo. ¿Ya usaste este tipo?";
+  }
+  if (this.contieneAlguna(mensaje, ['anual', 'anuales'])) {
+    return "📅 Los anuales casi no se usan hoy. Te recomiendo mensuales que son más seguros. ¿Te sirve?";
+  }
+
+  // PROBLEMAS ESPECÍFICOS
+  if (this.contieneAlguna(mensaje, ['miopia', 'miopía', 'corto vista'])) {
+    return "👁️ Para miopía tenemos varias opciones. ¿Tenés el valor de la receta?";
+  }
+  if (this.contieneAlguna(mensaje, ['astigmatismo', 'astigmatismo'])) {
+    return "👁️ Para astigmatismo también hay lentes especiales. ¿Sabés tu medida?";
+  }
+  if (this.contieneAlguna(mensaje, ['ojo seco', 'sequedad', 'secos'])) {
+    return "💧 Para ojos secos recomiendo los diarios o marcas específicas. ¿Sufrís de sequedad?";
+  }
+
+  // CONSULTA MÉDICA
+  if (this.contieneAlguna(mensaje, ['receta', 'oftalmólogo', 'oftalmologo', 'médico', 'medico'])) {
+    return "📄 Si tenés receta, traela. La vigencia es de 6 meses para lentes de contacto. ¿La tenés?";
+  }
+
+  // PRECIOS
+  if (this.contieneAlguna(mensaje, ['precio', 'cuesta', 'valor', 'cuanto'])) {
+    return "💲 Los precios varían según marca y tipo. ¿Te interesa alguna en particular?";
+  }
+
+  return "¿Te interesa probar alguna marca o necesitás más información?";
+}
+
+manejarRespuestaLiquidos(mensaje, contexto) {
+  // RECOMENDACIONES
+  if (this.contieneAlguna(mensaje, ['recomenda', 'sugerí', 'sugiere', 'recomiendas', 'recomendación'])) {
+    return "🧴 Te recomiendo Renu para sensibilidad o Opti-Free para uso diario. ¿Qué tipo de lente usás?";
+  }
+
+  // MARCAS ESPECÍFICAS
+  if (this.contieneAlguna(mensaje, ['renu', 'renu'])) {
+    return "✅ Tenemos Renu. ¿El de 300ml o 360ml?";
+  }
+  if (this.contieneAlguna(mensaje, ['opti-free', 'optifree'])) {
+    return "✅ Tenemos Opti-Free. ¿Express o Puremoist?";
+  }
+  if (this.contieneAlguna(mensaje, ['biotrue', 'bio true'])) {
+    return "✅ Tenemos BioTrue. Es muy suave con los ojos sensibles. ¿Te interesa?";
+  }
+
+  // TAMAÑOS
+  if (this.contieneAlguna(mensaje, ['chico', 'pequeño', '60ml', '120ml'])) {
+    return "📏 Para probar o viajar, tenemos de 60ml y 120ml. ¿Para qué lo necesitás?";
+  }
+  if (this.contieneAlguna(mensaje, ['grande', '360ml', '300ml', 'economico', 'económico'])) {
+    return "📏 El de 360ml rinde más y es más económico. ¿Usás lentes a diario?";
+  }
+
+  // TIPOS DE LENTE
+  if (this.contieneAlguna(mensaje, ['diario', 'diarios'])) {
+    return "📅 Para diarios podés usar cualquier líquido, pero Renu va muy bien. ¿Te sirve?";
+  }
+  if (this.contieneAlguna(mensaje, ['mensual', 'mensuales'])) {
+    return "📅 Para mensuales recomiendo Opti-Free que limpia más en profundidad. ¿Usás mensuales?";
+  }
+
+  // PROBLEMAS ESPECÍFICOS
+  if (this.contieneAlguna(mensaje, ['sensibl', 'sensibilidad', 'alergia'])) {
+    return "🌿 Para sensibilidad, BioTrue o Renu Sensitive. ¿Tenés los ojos sensibles?";
+  }
+  if (this.contieneAlguna(mensaje, ['sequedad', 'seco', 'hidratación'])) {
+    return "💧 Para sequedad, Opti-Free Puremoist tiene extra hidratación. ¿Te sirve?";
+  }
+
+  return "¿Qué marca de líquido te interesa o querés una recomendación?";
+}
+
+manejarRespuestaObraSocial(mensaje, contexto) {
+  // OBRAS SOCIALES ESPECÍFICAS
+  if (this.contieneAlguna(mensaje, ['medicus', 'medicus'])) {
+    return "✅ Sí, trabajamos con Medicus. ¿Tenés la receta? La vigencia es de 60 días.";
+  }
+  if (this.contieneAlguna(mensaje, ['swiss', 'swiss medical'])) {
+    return "✅ Sí, trabajamos con Swiss Medical. ¿Traés receta y credencial?";
+  }
+  if (this.contieneAlguna(mensaje, ['osetya', 'osetya'])) {
+    return "✅ Sí, trabajamos con Osetya. ¿La receta tiene menos de 60 días?";
+  }
+  if (this.contieneAlguna(mensaje, ['construir', 'construir salud'])) {
+    return "✅ Sí, trabajamos con Construir Salud. ¿Tenés toda la documentación?";
+  }
+
+  // DOCUMENTACIÓN
+  if (this.contieneAlguna(mensaje, ['receta', 'documento', 'documentación', 'papeles'])) {
+    return "📋 Necesitás receta específica, credencial y DNI. ¿Todo al día?";
+  }
+
+  // VIGENCIA
+  if (this.contieneAlguna(mensaje, ['vigencia', '60 días', '60 dias', 'caduca', 'venc'])) {
+    return "⏰ La receta vale 60 días desde la emisión. ¿La tuya está en fecha?";
+  }
+
+  // TURNOS Y PROCESOS
+  if (this.contieneAlguna(mensaje, ['turno', 'cita', 'consulta', 'visita'])) {
+    return "📅 Podés venir directamente. Traé receta, credencial y DNI. ¿Qué día te viene bien?";
+  }
+
+  return "¿Tenés alguna obra social en particular o te cuento los requisitos?";
+}
+
+manejarRespuestaMarca(mensaje, contexto) {
+  // MARCAS DE ARMAZONES
+  if (this.contieneAlguna(mensaje, ['ray-ban', 'rayban', 'ray ban'])) {
+    return "😎 Ray-Ban tenemos varios modelos. ¿Aviator, Wayfarer o Clubmaster?";
+  }
+  if (this.contieneAlguna(mensaje, ['oakley', 'oakley'])) {
+    return "🚴 Oakley ideal para deporte. ¿Holbrook, Frogskins o algo más deportivo?";
+  }
+  if (this.contieneAlguna(mensaje, ['vulk', 'vulk'])) {
+    return "👓 Vulk tenemos opciones económicas y lindas. ¿Para hombre o mujer?";
+  }
+
+  // ESTILOS
+  if (this.contieneAlguna(mensaje, ['aviator', 'aviador'])) {
+    return "✈️ Aviator clásico de metal. ¿Oro, plata o negro?";
+  }
+  if (this.contieneAlguna(mensaje, ['wayfarer', 'cuadrado'])) {
+    return "🕶️ Wayfarer estilo clásico. ¿Negro, tortoise o color?";
+  }
+  if (this.contieneAlguna(mensaje, ['redondo', 'circular', 'john lennon'])) {
+    return "● Redondos muy de moda. ¿Metal o acetato?";
+  }
+
+  return "¿Te gusta algún estilo en particular o te ayudo a elegir?";
+}
+
+manejarRespuestaPrecio(mensaje, contexto) {
+  // PRODUCTOS ESPECÍFICOS
+  if (this.contieneAlguna(mensaje, ['armazon', 'armazón', 'marco', 'montura'])) {
+    return "👓 Armazones desde $55.000. ¿Buscás alguna marca en particular?";
+  }
+  if (this.contieneAlguna(mensaje, ['lente contacto', 'lentilla', 'contacto'])) {
+    return "👁️ Lentes de contacto desde $5.000 el par. ¿Diarios o mensuales?";
+  }
+  if (this.contieneAlguna(mensaje, ['liquido', 'solución'])) {
+    return "🧴 Líquidos desde $3.000. ¿Qué marca te interesa?";
+  }
+
+  // PROMOCIONES
+  if (this.contieneAlguna(mensaje, ['promo', 'promoción', 'oferta', 'descuento'])) {
+    return "🎉 3 cuotas sin interés desde $100.000 y 10% en efectivo. ¿Te sirve?";
+  }
+
+  return "¿De qué producto querés saber el precio exacto?";
+}
+
+manejarRespuestaHorario(mensaje, contexto) {
+  if (this.contieneAlguna(mensaje, ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'])) {
+    return "✅ Abrimos todos los días de 10:30 a 19:30. ¿Qué día pensás venir?";
+  }
+  if (this.contieneAlguna(mensaje, ['finde', 'fin de semana', 'sábado', 'sabado'])) {
+    return "✅ Los sábados también de 10:30 a 19:30. ¿Te viene bien el sábado?";
+  }
+  return "⏰ Abrimos de lunes a sábado de 10:30 a 19:30. ¿Te sirve algún día?";
+}
+
+manejarRespuestaDireccion(mensaje, contexto) {
+  if (this.contieneAlguna(mensaje, ['subte', 'colectivo', 'bondi', 'transporte'])) {
+    return "🚇 Estamos a 4 cuadras de Ángel Gallardo (subte B). Colectivos: 109, 110, 112.";
+  }
+  if (this.contieneAlguna(mensaje, ['estacionamiento', 'auto', 'coche', 'aparcar'])) {
+    return "🚗 Hay estacionamiento en la zona. A veces se consigue en la misma calle.";
+  }
+  return "📍 Serrano 684, Villa Crespo. ¿Necesitás indicaciones de cómo llegar?";
+}
+
+// ==================== UTILIDADES ====================
+
+esRespuestaSimpleSi(mensaje) {
+  return this.contieneAlguna(mensaje, ['si', 'sí', 'si.', 'sí.', 'claro', 'por supuesto', 'obvio', 'dale']);
+}
+
+esRespuestaSimpleNo(mensaje) {
+  return this.contieneAlguna(mensaje, ['no', 'no.', 'todavía no', 'aún no', 'aun no', 'nop']);
+}
+
+contieneAlguna(mensaje, palabras) {
+  return palabras.some(palabra => mensaje.includes(palabra));
+}
 
   respuestaNoEntendido() {
     return "🤔 No te entendí bien. ¿Podés decirlo de otra forma?";
