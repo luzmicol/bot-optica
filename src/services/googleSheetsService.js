@@ -78,69 +78,89 @@ class GoogleSheetsService {
     }
   }
 
-  // Método específico para Armazones - VERSIÓN CON MAPEO EXACTO
-  async _procesarArmazones(sheet) {
-    try {
-      await sheet.loadHeaderRow(3);
-      const rows = await sheet.getRows();
-      console.log(`📊 ${rows.length} filas encontradas en Armazones`);
-      
-      const productos = rows.map((row, index) => {
-        try {
-          // 🎯 MAPEO EXACTO SEGÚN TUS COLUMNAS
-          const marca = row['C'] || '';        // Columna C - Marca
-          const sol_receta = row['E'] || '';   // Columna E - Sol/Receta  
-          const codigo = row['F'] || '';       // Columna F - COD.HYPNO
-          const modelo = row['G'] || '';       // Columna G - Modelo
-          const cantidad = row['I'] || '0';    // Columna I - Cantidad
-          const precio = row['P'] || '';       // Columna P - PRECIO
-          const descripcion = row['T'] || '';  // Columna T - Descripciones
-          
-          // Convertir cantidad a número
-          let stock = 0;
-          if (cantidad && cantidad !== '0') {
-            const numero = parseInt(cantidad.toString().replace(/[^\d]/g, ''));
-            stock = isNaN(numero) ? 0 : numero;
+// Método específico para Armazones - CON MÁS DEBUG
+async _procesarArmazones(sheet) {
+  try {
+    await sheet.loadHeaderRow(3);
+    const rows = await sheet.getRows();
+    console.log(`📊 ${rows.length} filas encontradas en Armazones`);
+    
+    // DEBUG: Ver las primeras filas REALES
+    console.log('🔍 Primeras 3 filas REALES:');
+    for (let i = 0; i < Math.min(3, rows.length); i++) {
+      console.log(`   Fila ${i + 4}:`, {
+        'C (Marca)': rows[i]['C'],
+        'F (COD.HYPNO)': rows[i]['F'], 
+        'G (Modelo)': rows[i]['G'],
+        'I (Cantidad)': rows[i]['I'],
+        'P (PRECIO)': rows[i]['P']
+      });
+    }
+    
+    const productos = rows.map((row, index) => {
+      try {
+        // 🎯 MAPEO EXACTO SEGÚN TUS COLUMNAS
+        const marca = row['C'] || '';
+        const sol_receta = row['E'] || '';  
+        const codigo = row['F'] || '';
+        const modelo = row['G'] || '';
+        const cantidad = row['I'] || '0';
+        const precio = row['P'] || '';
+        const descripcion = row['T'] || '';
+        
+        // DEBUG: Ver qué está leyendo
+        if (index < 3) {
+          console.log(`🔍 Procesando fila ${index + 4}:`, {
+            marca: marca,
+            codigo: codigo,
+            modelo: modelo,
+            cantidad: cantidad,
+            precio: precio
+          });
+        }
+        
+        // Convertir cantidad a número
+        let stock = 0;
+        if (cantidad && cantidad !== '0') {
+          const numero = parseInt(cantidad.toString().replace(/[^\d]/g, ''));
+          stock = isNaN(numero) ? 0 : numero;
+        }
+        
+        // ✅ Mostrar productos con marca O modelo
+        if (marca.trim() || modelo.trim()) {
+          return {
+            codigo: codigo.trim(),
+            marca: marca.trim(),
+            modelo: modelo.trim(),
+            sol_receta: sol_receta.trim(),
+            cantidad: stock,
+            precio: precio.toString().trim(),
+            descripcion: descripcion.trim(),
+            categoria: 'Armazones',
+            fila: index + 4
+          };
+        } else {
+          // DEBUG: Ver por qué se está filtrando
+          if (index < 3) {
+            console.log(`❌ Fila ${index + 4} filtrada - Sin marca ni modelo`);
           }
-          
-          // ✅ Mostrar productos con marca O modelo (aunque no tengan código)
-          if (marca.trim() || modelo.trim()) {
-            return {
-              codigo: codigo.trim(),
-              marca: marca.trim(),
-              modelo: modelo.trim(),
-              sol_receta: sol_receta.trim(),
-              cantidad: stock,
-              precio: precio.toString().trim(),
-              descripcion: descripcion.trim(),
-              categoria: 'Armazones',
-              fila: index + 4
-            };
-          }
-          return null;
-        } catch (rowError) {
-          console.error(`Error procesando fila ${index + 4}:`, rowError);
           return null;
         }
-      }).filter(producto => producto !== null);
-      
-      console.log(`✅ ${productos.length} productos válidos de Armazones`);
-      
-      // DEBUG: Mostrar algunos productos encontrados
-      if (productos.length > 0) {
-        console.log('🔍 Primeros 3 productos REALES encontrados:');
-        productos.slice(0, 3).forEach((p, i) => {
-          console.log(`   ${i + 1}. ${p.marca} ${p.modelo} - Stock: ${p.cantidad} - $${p.precio}`);
-        });
+      } catch (rowError) {
+        console.error(`Error procesando fila ${index + 4}:`, rowError);
+        return null;
       }
-      
-      return productos;
-      
-    } catch (error) {
-      console.error('❌ Error procesando Armazones:', error.message);
-      return [];
-    }
+    }).filter(producto => producto !== null);
+    
+    console.log(`✅ ${productos.length} productos válidos de Armazones`);
+    
+    return productos;
+    
+  } catch (error) {
+    console.error('❌ Error procesando Armazones:', error.message);
+    return [];
   }
+}
 
   // Método específico para Lentes de Contacto - VERSIÓN SIMPLIFICADA
   async _procesarLC(sheet) {
