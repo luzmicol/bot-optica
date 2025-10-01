@@ -1,13 +1,22 @@
 const { GoogleSpreadsheet } = require('google-spreadsheet');
-const { GOOGLE_SHEET_ID, GOOGLE_API_KEY } = require('../src-config-environment');
+
+// 🟢 CORREGIR RUTA - depende de tu estructura
+let GOOGLE_SHEET_ID, GOOGLE_API_KEY;
+try {
+  // Intentar cargar desde environment (Render)
+  GOOGLE_SHEET_ID = process.env.GOOGLE_SHEETS_ID;
+  GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+} catch (error) {
+  console.log('⚠️ No se pudo cargar config, usando process.env directamente');
+}
 
 class GoogleSheetsService {
   constructor() {
     this.doc = null;
     this.initialized = false;
     this.config = {
-      sheetId: GOOGLE_SHEET_ID,
-      apiKey: GOOGLE_API_KEY,
+      sheetId: GOOGLE_SHEET_ID || process.env.GOOGLE_SHEETS_ID,
+      apiKey: GOOGLE_API_KEY || process.env.GOOGLE_API_KEY,
       hojas: {
         armazones: 'armazones',
         lc: 'stock lc', 
@@ -98,7 +107,7 @@ class GoogleSheetsService {
     }
   }
 
-  // 🎯 FORMATEAR ARMAZÓN (igual que antes)
+  // 🎯 FORMATEAR ARMAZÓN
   formatearArmazon(row) {
     const producto = {
       tipo: 'armazon',
@@ -163,7 +172,7 @@ class GoogleSheetsService {
     }
   }
 
-  // 🔍 BÚSQUEDA GENERAL (igual que antes)
+  // 🔍 BÚSQUEDA GENERAL
   async buscarProducto(consulta) {
     try {
       console.log(`🔍 Búsqueda: "${consulta}"`);
