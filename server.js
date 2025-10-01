@@ -1,144 +1,325 @@
-// server.js
-
 const express = require('express');
-const { config } = require('./src/config/optica');
-const GoogleSheetsService = require('./src/services/googleSheetsService');
-const IntentRecognizer = require('./src/intents/recognition');
-const MemoryService = require('./src/services/memoryService');
-
 const app = express();
-app.use(express.json());
+
+// ==================== CONFIGURACIÓN BÁSICA ====================
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
-const googleSheetsService = new GoogleSheetsService();
-const memoryService = new MemoryService();
+// ==================== DATOS COMPLETOS DE HYPNOTTICA ====================
+const HYPNOTTICA = {
+  // 📍 INFORMACIÓN DE LA ÓPTICA
+  informacion: {
+    nombre: "Hypnottica",
+    direccion: "Serrano 684, Villa Crespo, CABA",
+    horarios: "Lunes a Sábado de 10:30 a 19:30",
+    telefono: "1132774631",
+    redes: "@hypnottica en Instagram y Facebook",
+    email: "solo proveedores"
+  },
 
-// Función principal para procesar mensajes
-async function procesarMensaje(mensaje, senderId) {
-  try {
-    // Obtener contexto del usuario
-    let contexto = await memoryService.obtenerContextoUsuario(senderId);
+  // 🏥 OBRAS SOCIALES
+  obrasSociales: {
+    aceptadas: ["Medicus", "Osetya", "Construir Salud", "Swiss Medical"],
+    requisitos: {
+      receta: "Debe detallar de manera precisa el tipo de lente solicitado",
+      documentacion: "Número de credencial, datos del paciente, sello del médico y receta vigente",
+      vigencia: "60 días corridos desde su emisión",
+      restricciones: "La cobertura es únicamente para lo indicado en la receta"
+    },
+    promociones: "Actualmente no contamos con promociones adicionales"
+  },
 
-    // Detectar intención
-    const intencion = IntentRecognizer.detectIntent(mensaje);
+  // 👓 PRODUCTOS
+  productos: {
+    armazones: "Disponibles en stock (consultar modelos)",
+    lentesContacto: {
+      marcas: ["Acuvue", "Biofinity", "Air Optix"],
+      tipos: ["diarios", "mensuales", "anuales"],
+      nota: "Los anuales casi no se utilizan actualmente por mayor riesgo y cuidado"
+    },
+    liquidos: "Marcas y tamaños disponibles (consultar)",
+    accesorios: "Estuches, paños, líquidos y otros accesorios",
+    servicios: "Ajustes y reparaciones (evaluación en persona)"
+  },
 
-    // Procesar según la intención
-    let respuesta = await procesarIntencion(intencion, mensaje, contexto);
+  // 💰 PRECIOS Y PROMOCIONES
+  precios: {
+    rangoArmazones: "$55.000 hasta $370.000 (solo armazón)",
+    promociones: [
+      "3 cuotas sin interés a partir de $100.000",
+      "6 cuotas sin interés a partir de $200.000",
+      "10% de descuento abonando en efectivo (totalidad en efectivo)"
+    ],
+    mediosPago: ["efectivo", "QR", "tarjetas de crédito/débito"]
+  },
 
-    // Guardar contexto actualizado
-    contexto.ultimaIntencion = intencion;
-    contexto.historial = contexto.historial || [];
-    contexto.historial.push({ mensaje, respuesta, timestamp: Date.now() });
-    await memoryService.guardarContextoUsuario(senderId, contexto);
+  // 🗣️ PALABRAS CLAVE
+  palabrasClave: {
+    saludos: [
+      "hola", "buenas", "holis", "hey", "qué tal", "cómo andás", "cómo andan",
+      "buen día", "buenas tardes", "buenas noches", "qué hacés", "cómo va",
+      "saludos", "ey", "buenas ¿todo bien?", "holaaa"
+    ],
+    despedidas: [
+      "chau", "gracias", "nos vemos", "adiós", "hasta luego", "hasta pronto",
+      "hasta mañana", "hasta la próxima", "cuidate", "cuídense", "un saludo",
+      "suerte", "que estés bien", "que les vaya bien", "abrazo", "besos",
+      "hablamos", "chaooo"
+    ],
+    sinonimosProductos: [
+      "lentes", "anteojos", "gafas", "espejuelos", "gafas de sol", "lentes de sol",
+      "lentes recetados", "anteojos recetados", "lentes de aumento", "lentes graduados",
+      "monturas", "armazones", "cristales", "lentillas", "lentes de contacto",
+      "pupilentes", "gafas ópticas", "gafas de lectura", "multifocales", "bifocales",
+      "progresivos", "lentes para computadora", "lentes de cerca", "lentes de lejos"
+    ]
+  },
 
-    return respuesta;
-  } catch (error) {
-    console.error('Error procesando mensaje:', error);
-    return '❌ Ocurrió un error procesando tu mensaje. Por favor, intentá nuevamente.';
+  // ⏰ TIEMPOS DE ENTREGA
+  tiemposEntrega: {
+    particulares: "1 día a 1 semana (según tipo de cristal)",
+    obraSocial: "alrededor de 2 semanas",
+    lentesContactoOS: "2 a 4 semanas"
+  }
+};
+
+// ==================== SISTEMA DE INTENCIONES ====================
+class IntentRecognizer {
+  detectIntent(mensaje) {
+    const mensajeLower = mensaje.toLowerCase();
+    
+    if (this.esSaludo(mensajeLower)) return 'saludo';
+    if (this.esDespedida(mensajeLower)) return 'despedida';
+    if (this.esObraSocial(mensajeLower)) return 'obra_social';
+    if (this.esStock(mensajeLower)) return 'stock';
+    if (this.esPrecio(mensajeLower)) return 'precio';
+    if (this.esMarca(mensajeLower)) return 'marca';
+    if (this.esHorario(mensajeLower)) return 'horario';
+    if (this.esDireccion(mensajeLower)) return 'direccion';
+    if (this.esLentesContacto(mensajeLower)) return 'lentes_contacto';
+    if (this.esLiquidos(mensajeLower)) return 'liquidos';
+    if (this.esConsultaFrecuente(mensajeLower)) return 'consulta_frecuente';
+    
+    return 'no_entendido';
+  }
+
+  esSaludo(mensaje) {
+    return HYPNOTTICA.palabrasClave.saludos.some(saludo => 
+      mensaje.includes(saludo)
+    );
+  }
+
+  esDespedida(mensaje) {
+    return HYPNOTTICA.palabrasClave.despedidas.some(despedida => 
+      mensaje.includes(despedida)
+    );
+  }
+
+  esObraSocial(mensaje) {
+    const palabrasOS = ['obra social', 'prepaga', 'swiss medical', 'medicus', 'osetya', 'construir salud'];
+    return palabrasOS.some(palabra => mensaje.includes(palabra));
+  }
+
+  esStock(mensaje) {
+    return mensaje.includes('stock') || mensaje.includes('#stock') || 
+           mensaje.includes('tenes') || mensaje.includes('tienen');
+  }
+
+  esPrecio(mensaje) {
+    return mensaje.includes('precio') || mensaje.includes('cuesta') || 
+           mensaje.includes('cuanto sale') || mensaje.includes('valor');
+  }
+
+  esMarca(mensaje) {
+    return mensaje.includes('marca') || mensaje.includes('ray-ban') || 
+           mensaje.includes('oakley') || mensaje.includes('marcas');
+  }
+
+  esHorario(mensaje) {
+    return mensaje.includes('horario') || mensaje.includes('hora') || 
+           mensaje.includes('abren') || mensaje.includes('cierran');
+  }
+
+  esDireccion(mensaje) {
+    return mensaje.includes('direccion') || mensaje.includes('ubicacion') || 
+           mensaje.includes('donde estan') || mensaje.includes('ubicados');
+  }
+
+  esLentesContacto(mensaje) {
+    return mensaje.includes('lentes de contacto') || mensaje.includes('lentillas') || 
+           mensaje.includes('pupilentes') || mensaje.includes('contacto');
+  }
+
+  esLiquidos(mensaje) {
+    return mensaje.includes('líquido') || mensaje.includes('liquido') || 
+           mensaje.includes('solucion') || mensaje.includes('solución');
+  }
+
+  esConsultaFrecuente(mensaje) {
+    const consultas = ['envio', 'envío', 'domicilio', 'financiacion', 'cuota', 'receta'];
+    return consultas.some(consulta => mensaje.includes(consulta));
   }
 }
 
-async function procesarIntencion(intencion, mensaje, contexto) {
-  switch (intencion) {
-    case 'greeting':
-      return `👋 ¡Hola! Soy ${config.personalidad.nombre}, tu asistente de *Hypnottica*. ¿En qué puedo ayudarte hoy?\n\n• Consultar stock\n• Precios\n• Agendar cita\n• Obras sociales\n• Ubicación y horarios`;
+// ==================== MANEJADOR DE RESPUESTAS ====================
+class ResponseHandler {
+  constructor() {
+    this.recognizer = new IntentRecognizer();
+  }
 
-    case 'farewell':
-      return `👋 ¡Fue un gusto ayudarte! No dudes en escribirme si tenés más preguntas.\n\n*Hypnottica* - Tu visión, nuestra pasión.`;
+  async generarRespuesta(mensaje, contexto = { paso: 0 }) {
+    const intent = this.recognizer.detectIntent(mensaje);
+    
+    switch (intent) {
+      case 'saludo':
+        return this.respuestaSaludo(contexto);
+      
+      case 'obra_social':
+        return this.respuestaObraSocial();
+      
+      case 'precio':
+        return this.respuestaPrecios();
+      
+      case 'marca':
+        return this.respuestaMarcas();
+      
+      case 'horario':
+        return this.respuestaHorarios();
+      
+      case 'direccion':
+        return this.respuestaDireccion();
+      
+      case 'lentes_contacto':
+        return this.respuestaLentesContacto();
+      
+      case 'liquidos':
+        return this.respuestaLiquidos();
+      
+      case 'consulta_frecuente':
+        return this.respuestaConsultaFrecuente(mensaje);
+      
+      case 'despedida':
+        return this.respuestaDespedida();
+      
+      default:
+        return this.respuestaNoEntendido();
+    }
+  }
 
-    case 'health_insurance':
-      return `🏥 *Obras Sociales que aceptamos:*\n\n${config.obrasSociales.aceptadas.map(os => `• ${os}`).join('\n')}\n\n💡 *Requisitos:*\n${config.obrasSociales.requisitos.receta}\n\n📄 *Documentación:* ${config.obrasSociales.requisitos.documentacion}\n⏳ *Vigencia receta:* ${config.obrasSociales.requisitos.vigencia}\n${config.obrasSociales.requisitos.restricciones}`;
+  respuestaSaludo(contexto) {
+    contexto.paso = 1;
+    const emojis = ['👋', '👓', '🔍', '💡', '📍', '🌟'];
+    const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+    
+    return `${emoji} ¡Hola! Soy *Luna*, tu asistente de *Hypnottica*. ¿En qué puedo ayudarte hoy?\n\n` +
+           `• 📦 Consultar stock\n` +
+           `• 💲 Precios y promociones\n` +
+           `• 🏥 Obras sociales\n` +
+           `• 👁️ Lentes de contacto\n` +
+           `• 📍 Ubicación y horarios\n` +
+           `• 🔧 Servicios técnicos`;
+  }
 
-    case 'price_query':
-      return `💲 *Precios de armazones:*\n${config.precios.rangoArmazones}\n\n💳 *Promociones:*\n${Object.entries(config.precios.promociones.cuotas).map(([key, value]) => `• ${key}: ${value}`).join('\n')}\n\n💰 *Descuento por pago en efectivo:* ${config.precios.promociones.descuentoEfectivo}`;
+  respuestaObraSocial() {
+    return `🏥 *Obras Sociales que aceptamos:*\n\n` +
+           `${HYPNOTTICA.obrasSociales.aceptadas.map(os => `• ${os}`).join('\n')}\n\n` +
+           `📋 *Requisitos:*\n` +
+           `• ${HYPNOTTICA.obrasSociales.requisitos.receta}\n` +
+           `• ${HYPNOTTICA.obrasSociales.requisitos.documentacion}\n` +
+           `• Vigencia: ${HYPNOTTICA.obrasSociales.requisitos.vigencia}\n\n` +
+           `💡 *Importante:* ${HYPNOTTICA.obrasSociales.requisitos.restricciones}`;
+  }
 
-    case 'brand_query':
-      const marcasArmazones = await googleSheetsService.obtenerTodosProductos();
-      const marcasUnicas = [...new Set(marcasArmazones.map(p => p.marca).filter(m => m !== 'N/A'))];
-      return `👓 *Marcas de armazones que trabajamos:*\n${marcasUnicas.map(m => `• ${m}`).join('\n')}\n\n👁️ *Marcas de lentes de contacto:*\n${config.productos.lentesContacto.marcas.map(m => `• ${m}`).join('\n')}`;
+  respuestaPrecios() {
+    return `💲 *Precios y Promociones*\n\n` +
+           `👓 *Armazones:* ${HYPNOTTICA.precios.rangoArmazones}\n\n` +
+           `🎉 *Promociones vigentes:*\n` +
+           `${HYPNOTTICA.precios.promociones.map(p => `• ${p}`).join('\n')}\n\n` +
+           `💳 *Medios de pago:* ${HYPNOTTICA.precios.mediosPago.join(', ')}`;
+  }
 
-    case 'stock_code_query':
-      const codigo = mensaje.split(' ')[1];
-      if (!codigo) {
-        return "❌ Por favor, indicá el código del producto. Ejemplo: `#stock AC-274`";
-      }
-      const producto = await googleSheetsService.buscarPorCodigo(codigo);
-      if (producto) {
-        return `📦 *${producto.marca} - ${producto.modelo}*\n\n🆔 Código: ${producto.codigo}\n👓 Tipo: ${producto.tipo_lente}\n📝 Descripción: ${producto.descripcion}\n💰 Precio: $${producto.precio}\n📊 Stock: ${producto.cantidad} unidades\n${producto.disponible ? '✅ DISPONIBLE' : '❌ SIN STOCK'}`;
-      } else {
-        return "❌ No se encontró ningún producto con ese código. ¿Podrías verificarlo?";
-      }
+  respuestaMarcas() {
+    return `👓 *Marcas que trabajamos:*\n\n` +
+           `• Ray-Ban\n` +
+           `• Oakley\n` +
+           `• Vulk\n` +
+           `• Y muchas más!\n\n` +
+           `👁️ *Lentes de contacto:* ${HYPNOTTICA.productos.lentesContacto.marcas.join(', ')}\n\n` +
+           `¿Te interesa alguna marca en particular?`;
+  }
 
-    case 'stock_search_query':
-      // Aquí podrías implementar una búsqueda por descripción
-      return "🔍 Contame qué tipo de lentes buscás (por ejemplo: 'lentes de sol ray-ban') y te ayudo a encontrar opciones.";
+  respuestaHorarios() {
+    return `⏰ *Horarios de atención:*\n\n` +
+           `${HYPNOTTICA.informacion.horarios}\n\n` +
+           `📍 ${HYPNOTTICA.informacion.direccion}\n\n` +
+           `📞 ${HYPNOTTICA.informacion.telefono}`;
+  }
 
-    case 'contact_lens_query':
-      const marcasLC = await googleSheetsService.obtenerMarcasLC();
-      return `👁️ *Lentes de contacto*\n\n📋 *Marcas disponibles:*\n${marcasLC.map(m => `• ${m}`).join('\n')}\n\n💡 *Tipos:* ${config.productos.lentesContacto.tipos.join(', ')}\n\n${config.productos.lentesContacto.nota}`;
+  respuestaDireccion() {
+    return `📍 *Nuestra dirección:*\n\n` +
+           `${HYPNOTTICA.informacion.direccion}\n\n` +
+           `⏰ *Horarios:* ${HYPNOTTICA.informacion.horarios}\n\n` +
+           `📱 *Seguinos:* ${HYPNOTTICA.informacion.redes}`;
+  }
 
-    case 'liquid_query':
-      const liquidos = await googleSheetsService.obtenerLiquidos();
-      return `🧴 *Líquidos para lentes de contacto:*\n\n${liquidos.map(l => `• ${l.marca} - ${l.tamaño}`).join('\n')}`;
+  respuestaLentesContacto() {
+    return `👁️ *¡Sí! Trabajamos con lentes de contacto* ✅\n\n` +
+           `🏷️ *Marcas disponibles:*\n` +
+           `${HYPNOTTICA.productos.lentesContacto.marcas.map(m => `• ${m}`).join('\n')}\n\n` +
+           `📋 *Tipos:* ${HYPNOTTICA.productos.lentesContacto.tipos.join(', ')}\n\n` +
+           `💡 *Nota:* ${HYPNOTTICA.productos.lentesContacto.nota}\n\n` +
+           `⏰ *Tiempo de entrega por obra social:* ${HYPNOTTICA.tiemposEntrega.lentesContactoOS}\n\n` +
+           `¿Qué marca te interesa o ya usás alguna?`;
+  }
 
-    case 'schedule_query':
-      return `⏰ *Horarios de atención:*\n${config.horarios}\n\n📍 ${config.direccion}`;
+  respuestaLiquidos() {
+    return `🧴 *Líquidos para lentes de contacto*\n\n` +
+           `📦 *Productos disponibles:*\n` +
+           `• Renu - 300ml\n` +
+           `• Opti-Free - 360ml\n` +
+           `• BioTrue - 300ml\n` +
+           `• Y más marcas\n\n` +
+           `💲 *Precios promocionales* todos los meses\n` +
+           `🎁 *Descuentos* por cantidad\n\n` +
+           `¿Te interesa algún producto en particular?`;
+  }
 
-    case 'location_query':
-      return `📍 *Nuestra dirección:*\n${config.direccion}\n\n⏰ *Horarios:* ${config.horarios}`;
+  respuestaConsultaFrecuente(mensaje) {
+    if (mensaje.includes('envio') || mensaje.includes('domicilio')) {
+      return `🚚 *Envíos a domicilio:*\n\n` +
+             `Sí, en algunos casos. Sin embargo, recomendamos siempre retirar en persona para realizar el control final con los lentes puestos.`;
+    }
+    
+    if (mensaje.includes('financiacion') || mensaje.includes('cuota')) {
+      return `💳 *Financiación:*\n\n` +
+             `Sí, contamos con planes en cuotas sin interés:\n` +
+             `${HYPNOTTICA.precios.promociones.map(p => `• ${p}`).join('\n')}`;
+    }
+    
+    if (mensaje.includes('receta')) {
+      return `📄 *Recetas médicas:*\n\n` +
+             `Sí, aceptamos recetas y podemos corroborar la refracción indicada por el médico.`;
+    }
+    
+    return this.respuestaNoEntendido();
+  }
 
-    case 'shipping_query':
-      return `🚚 *Envíos a domicilio:*\n${config.consultasFrecuentes.envios}`;
+  respuestaDespedida() {
+    const emojis = ['👋', '🌟', '💫', '✨'];
+    const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+    return `${emoji} ¡Fue un gusto ayudarte! No dudes en escribirme si tenés más preguntas.\n\n` +
+           `*Hypnottica* - Tu visión, nuestra pasión.`;
+  }
 
-    case 'financing_query':
-      return `💳 *Financiación:*\n${config.consultasFrecuentes.financiacion}`;
-
-    case 'frequent_question':
-      // Podrías tener un sistema de preguntas frecuentes más elaborado
-      return `🤔 *Preguntas frecuentes:*\n\n• Precios: ${config.consultasFrecuentes.precios}\n• Obras sociales: ${config.consultasFrecuentes.obrasSociales}\n• Tiempos de entrega: Particulares: ${config.consultasFrecuentes.tiempoEntrega.particulares}, Obra social: ${config.consultasFrecuentes.tiempoEntrega.obraSocial}\n• Ubicación: ${config.consultasFrecuentes.ubicacion}\n• Horarios: ${config.consultasFrecuentes.horarios}`;
-
-    default:
-      return `🤔 No estoy segura de entenderte. ¿Podrías decirlo de otra forma?\n\nPodés preguntarme por:\n• Stock de productos\n• Precios\n• Marcas\n• Horarios\n• Obras sociales\n\nO escribí *"hola"* para ver todas las opciones.`;
+  respuestaNoEntendido() {
+    return `🤔 No estoy segura de entenderte. ¿Podrías decirlo de otra forma?\n\n` +
+           `Podés preguntarme por:\n` +
+           `• 📦 Stock de productos\n` +
+           `• 💲 Precios y promociones\n` +
+           `• 🏥 Obras sociales\n` +
+           `• 👁️ Lentes de contacto\n` +
+           `• ⏰ Horarios\n` +
+           `• 📍 Ubicación\n\n` +
+           `O escribí *"hola"* para ver todas las opciones.`;
   }
 }
-
-// Ruta para el probador web
-app.post('/probar-bot', async (req, res) => {
-  try {
-    const { mensaje } = req.body;
-    const respuesta = await procesarMensaje(mensaje, 'web-user');
-    res.json({ respuesta });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Ruta de diagnóstico
-app.get('/debug-sheets', async (req, res) => {
-  try {
-    await googleSheetsService.initialize();
-    const armazones = await googleSheetsService.obtenerProductosDeSheet('STOCK ARMAZONES 1');
-    const lc = await googleSheetsService.obtenerProductosDeSheet('Stock LC');
-    const liquidos = await googleSheetsService.obtenerProductosDeSheet('Stock Liquidos');
-
-    res.json({
-      configuracion: {
-        sheets_id: process.env.GOOGLE_SHEETS_ID ? '✅ Configurado' : '❌ Faltante',
-        api_key: process.env.GOOGLE_API_KEY ? '✅ Configurado' : '❌ Faltante'
-      },
-      hojas: {
-        'STOCK ARMAZONES 1': { productos: armazones.length },
-        'Stock LC': { productos: lc.length },
-        'Stock Liquidos': { productos: liquidos.length }
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Iniciar servidor
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🤖 ${config.personalidad.nombre} funcionando en puerto ${PORT}`);
-});
