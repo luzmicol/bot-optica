@@ -85,25 +85,24 @@ const HYPNOTTICA = {
 
 // ==================== SISTEMA DE INTENCIONES MEJORADO ====================
 class IntentRecognizer {
-  detectIntent(mensaje) {
-    const mensajeLower = mensaje.toLowerCase().trim();
-    
-    // 🎯 DETECCIÓN MÁS INTELIGENTE Y FLEXIBLE
-    if (this.esSaludo(mensajeLower)) return 'saludo';
-    if (this.esDespedida(mensajeLower)) return 'despedida';
-    if (this.esObraSocial(mensajeLower)) return 'obra_social';
-    if (this.esStock(mensajeLower)) return 'stock';
-    if (this.esPrecio(mensajeLower)) return 'precio';
-    if (this.esMarca(mensajeLower)) return 'marca';
-    if (this.esHorario(mensajeLower)) return 'horario';
-    if (this.esDireccion(mensajeLower)) return 'direccion';
-    if (this.esLentesContacto(mensajeLower)) return 'lentes_contacto';
-    if (this.esLiquidos(mensajeLower)) return 'liquidos';
-    if (this.esConsultaFrecuente(mensajeLower)) return 'consulta_frecuente';
-    
-    return 'no_entendido';
-  }
-
+ detectIntent(mensaje) {
+  const mensajeLower = mensaje.toLowerCase().trim();
+  
+  // 🎯 ORDEN CRÍTICO: Lo más específico primero
+  if (this.esLentesContacto(mensajeLower)) return 'lentes_contacto';
+  if (this.esLiquidos(mensajeLower)) return 'liquidos';
+  if (this.esObraSocial(mensajeLower)) return 'obra_social';
+  if (this.esPrecio(mensajeLower)) return 'precio';
+  if (this.esMarca(mensajeLower)) return 'marca';
+  if (this.esHorario(mensajeLower)) return 'horario';
+  if (this.esDireccion(mensajeLower)) return 'direccion';
+  if (this.esStock(mensajeLower)) return 'stock';
+  if (this.esSaludo(mensajeLower)) return 'saludo';
+  if (this.esDespedida(mensajeLower)) return 'despedida';
+  if (this.esConsultaFrecuente(mensajeLower)) return 'consulta_frecuente';
+  
+  return 'no_entendido';
+}
   esSaludo(mensaje) {
     const patronesSaludo = [
       'hola', 'buenas', 'holis', 'hey', 'qué tal', 'cómo andás', 'cómo andan',
@@ -125,15 +124,18 @@ class IntentRecognizer {
   }
 
   esObraSocial(mensaje) {
-    const patronesOS = [
-      'obra social', 'prepaga', 'swiss medical', 'medicus', 'osetya', 
-      'construir salud', 'obras sociales', 'cobertura', 'plan médico',
-      'trabajan con', 'aceptan', 'tienen convenio', 'seguro', 'medical',
-      'os', 'prepaga'
-    ];
-    return patronesOS.some(palabra => mensaje.includes(palabra));
+  // Evitar que detecte "líquidos" como "obra social"
+  if (mensaje.includes('líquidos') || mensaje.includes('liquidos')) {
+    return false;
   }
-
+  
+  const patronesOS = [
+    'obra social', 'prepaga', 'swiss medical', 'medicus', 'osetya', 
+    'construir salud', 'obras sociales', 'cobertura', 'plan médico',
+    'trabajan con', 'aceptan', 'tienen convenio', 'seguro', 'medical'
+  ];
+  return patronesOS.some(palabra => mensaje.includes(palabra));
+}
   esStock(mensaje) {
     const patronesStock = [
       'stock', 'tenes', 'tienen', 'disponible', 'hay', 'queda', 'venden',
@@ -185,17 +187,17 @@ class IntentRecognizer {
   }
 
   esLentesContacto(mensaje) {
-    const patronesLC = [
-      'lentes de contacto', 'lentillas', 'pupilentes', 'contacto',
-      'lentes contacto', 'lentilla', 'contact lens', 'lentescontacto',
-      'lentillas de contacto', 'pupilente', 'lentescontactos',
-      'lentes de contactos', 'lentillas contacto', 'lentescontact',
-      'qué lentes de contacto', 'que lentes de contacto', 'lentes contacto tienen',
-      'lentillas tienen', 'contactos tienen'
-    ];
-    return patronesLC.some(palabra => mensaje.includes(palabra));
-  }
-
+  const patronesLC = [
+    'lentes de contacto', 'lentillas', 'pupilentes', 'contacto',
+    'lentes contacto', 'lentilla', 'contact lens', 'lentescontacto',
+    'lentillas de contacto', 'pupilente', 'lentescontactos',
+    'lentes de contactos', 'lentillas contacto', 'lentescontact',
+    'qué lentes de contacto', 'que lentes de contacto', 'lentes contacto tienen',
+    'lentillas tienen', 'contactos tienen', 'tienen lentes de contacto',
+    'tienen lentillas', 'venden lentes de contacto', 'venden contactos'
+  ];
+  return patronesLC.some(palabra => mensaje.includes(palabra));
+}
   esLiquidos(mensaje) {
     const patronesLiquidos = [
       'líquido', 'liquido', 'solucion', 'solución', 'liquidos', 'líquidos',
