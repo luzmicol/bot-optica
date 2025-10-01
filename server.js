@@ -1,151 +1,144 @@
+// server.js
+
 const express = require('express');
+const { config } = require('./src/config/optica');
 const GoogleSheetsService = require('./src/services/googleSheetsService');
 const IntentRecognizer = require('./src/intents/recognition');
-const config = require('./src/config/optica');
+const MemoryService = require('./src/services/memoryService');
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Inicializar servicios
-const sheetsService = new GoogleSheetsService();
-const intentRecognizer = new IntentRecognizer();
+const googleSheetsService = new GoogleSheetsService();
+const memoryService = new MemoryService();
 
-// 🟢 MANEJADOR PRINCIPAL DE MENSAJES
-async function procesarMensaje(mensaje, contexto = {}) {
-  const intent = intentRecognizer.detectIntent(mensaje);
-  console.log(`🎯 Intención detectada: ${intent}`);
+// Función principal para procesar mensajes
+async function procesarMensaje(mensaje, senderId) {
+  try {
+    // Obtener contexto del usuario
+    let contexto = await memoryService.obtenerContextoUsuario(senderId);
 
-  switch (intent) {
-    case 'saludo':
-      return `👋 ¡Hola! Soy ${config.bot.nombre}, tu asistente de ${config.optica.nombre}. ¿En qué puedo ayudarte hoy? 🌙\n\nPuedo ayudarte con:\n• Consultas de stock\n• Precios y promociones\n• Obras sociales\n• Lentes de contacto\n• Horarios y ubicación`;
+    // Detectar intención
+    const intencion = IntentRecognizer.detectIntent(mensaje);
 
-    case 'despedida':
-      return `👋 ¡Fue un gusto ayudarte! No dudes en escribirme si tenés más preguntas.\n\n${config.optica.nombre} - Tu visión, nuestra pasión.`;
+    // Procesar según la intención
+    let respuesta = await procesarIntencion(intencion, mensaje, contexto);
 
-    case 'obra_social':
-      const obraSocial = intentRecognizer.extractObraSocial(mensaje);
-      const obrasLista = config.obrasSociales.aceptadas.map(os => `• ${os}`).join('\n');
-      
-      let respuestaOS = `🏥 ${obraSocial ? `Sí, trabajamos con ${obraSocial}.` : 'Obras sociales que aceptamos:'}\n\n${obrasLista}\n\n`;
-      respuestaOS += `📋 *Requisitos:*\n`;
-      respuestaOS += `• Receta: ${config.obrasSociales.requisitos.receta}\n`;
-      respuestaOS += `• Documentación: ${config.obrasSociales.requisitos.documentacion}\n`;
-      respuestaOS += `• Vigencia: ${config.obrasSociales.requisitos.vigencia}\n`;
-      respuestaOS += `• ${config.obrasSociales.requisitos.restricciones}\n\n`;
-      respuestaOS += `💡 *¿Necesitás agendar una consulta?*`;
-      
-      return respuestaOS;
+    // Guardar contexto actualizado
+    contexto.ultimaIntencion = intencion;
+    contexto.historial = contexto.historial || [];
+    contexto.historial.push({ mensaje, respuesta, timestamp: Date.now() });
+    await memoryService.guardarContextoUsuario(senderId, contexto);
 
-    case 'stock_codigo':
-      const codigo = intentRecognizer.extractCodigo(mensaje);
-      if (!codigo) {
-        return "❌ Por favor, indicá el código del producto. Ejemplo: \"#stock AC-274\"";
-      }
-      
-      const producto = await sheetsService.buscarArmazon(codigo);
-      if (producto) {
-        const stockMsg = producto.disponible ? `✅ Stock: ${producto.cantidad} unidades` : '❌ Sin stock';
-        return `📦 *${producto.marca} - ${producto.modelo}*\n\n🆔 Código: ${producto.codigo}\n👓 Tipo: ${producto.tipo}\n📝 ${producto.descripcion}\n${stockMsg}\n💲 Precio: $${producto.precio}`;
-      } else {
-        return "❌ No encontré ningún producto con ese código. ¿Podrías verificarlo?";
-      }
-
-    case 'busqueda_producto':
-      const productos = await sheetsService.buscarPorDescripcion(mensaje);
-      if (productos.length > 0) {
-        let respuesta = `🔍 *Encontré estas opciones para vos:*\n\n`;
-        productos.forEach((p, index) => {
-          const stock = p.disponible ? `(Stock disponible)` : '(Sin stock)';
-          respuesta += `${index + 1}. *${p.codigo}* - ${p.marca} ${p.modelo} - $${p.precio} ${stock}\n`;
-        });
-        respuesta += `\n*Escribí #stock [código] para más detalles.*`;
-        return respuesta;
-      } else {
-        return "❌ No encontré productos con esa descripción. ¿Podrías ser más específico?";
-      }
-
-    case 'precios':
-      let respuestaPrecios = `💲 *Precios y Promociones*\n\n`;
-      respuestaPrecios += `📦 *Armazones:* ${config.precios.rango}\n\n`;
-      respuestaPrecios += `🎁 *Promociones vigentes:*\n`;
-      Object.entries(config.precios.promociones).forEach(([promo, detalle]) => {
-        respuestaPrecios += `• ${promo}: ${detalle}\n`;
-      });
-      respuestaPrecios += `\n💳 *Medios de pago:* ${config.precios.mediosPago.join(', ')}`;
-      return respuestaPrecios;
-
-    case 'horarios':
-      return `⏰ *Horarios de atención:*\n${config.optica.horarios}\n\n📍 ${config.optica.direccion}`;
-
-    case 'ubicacion':
-      return `📍 *Nuestra dirección:*\n${config.optica.direccion}\n\n⏰ *Horarios:* ${config.optica.horarios}\n\n📱 *Seguinos:* ${config.optica.redes.instagram}`;
-
-    case 'lentes_contacto':
-      const marcasLC = await sheetsService.obtenerMarcasLC();
-      let respuestaLC = `👁️ *¡Sí! Trabajamos con lentes de contacto* ✅\n\n`;
-      respuestaLC += `🏷️ *Marcas disponibles:*\n${marcasLC.map(m => `• ${m}`).join('\n')}\n\n`;
-      respuestaLC += `📋 *Tipos:* ${config.productos.lentesContacto.tipos.join(', ')}\n`;
-      respuestaLC += `💡 *Nota:* ${config.productos.lentesContacto.nota}\n\n`;
-      respuestaLC += `❓ *Preguntas frecuentes:*\n`;
-      respuestaLC += `• ¿Necesito receta? → No es obligatoria, pero se recomienda\n`;
-      respuestaLC += `• ¿Cómo se colocan? → Te enseñamos todo el proceso\n`;
-      respuestaLC += `• ¿Son cómodos? → Sí, tras breve adaptación\n\n`;
-      respuestaLC += `⏰ *Horario de adaptación:* hasta las 18:30`;
-      return respuestaLC;
-
-    case 'liquidos':
-      const liquidos = await sheetsService.obtenerLiquidos();
-      let respuestaLiquidos = `🧴 *Líquidos para lentes de contacto:*\n\n`;
-      if (liquidos.length > 0) {
-        respuestaLiquidos += `📦 *Productos disponibles:*\n`;
-        liquidos.forEach(l => {
-          respuestaLiquidos += `• ${l.marca} - ${l.tamaño}\n`;
-        });
-      } else {
-        respuestaLiquidos += `💧 Contamos con líquidos de las principales marcas\n`;
-      }
-      respuestaLiquidos += `\n💲 *Precios promocionales* todos los meses\n🎁 *Descuentos* por cantidad`;
-      return respuestaLiquidos;
-
-    case 'marcas':
-      const todosProductos = await sheetsService.leerHoja('STOCK ARMAZONES 1');
-      const marcas = [...new Set(todosProductos.map(p => p['Marca']).filter(m => m))].sort();
-      const marcasMostrar = marcas.slice(0, 10);
-      
-      let respuestaMarcas = `👓 *Algunas de las marcas que trabajamos:*\n\n${marcasMostrar.map(m => `• ${m}`).join('\n')}`;
-      if (marcas.length > 10) respuestaMarcas += `\n\n...y ${marcas.length - 10} marcas más.`;
-      respuestaMarcas += `\n\n¿Te interesa alguna marca en particular?`;
-      return respuestaMarcas;
-
-    default:
-      return `🤔 No estoy segura de entenderte. ¿Podrías decirlo de otra forma?\n\nPodés preguntarme por:\n• Stock de productos\n• Precios y promociones\n• Obras sociales\n• Horarios y ubicación\n• Lentes de contacto\n\nO escribí *"hola"* para ver todas las opciones.`;
+    return respuesta;
+  } catch (error) {
+    console.error('Error procesando mensaje:', error);
+    return '❌ Ocurrió un error procesando tu mensaje. Por favor, intentá nuevamente.';
   }
 }
 
-// 🟢 RUTAS EXISTENTES (las mantienes)
-app.get('/debug-sheets', async (req, res) => {
-  try {
-    const diagnostico = await sheetsService.diagnostico();
-    res.json(diagnostico);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+async function procesarIntencion(intencion, mensaje, contexto) {
+  switch (intencion) {
+    case 'greeting':
+      return `👋 ¡Hola! Soy ${config.personalidad.nombre}, tu asistente de *Hypnottica*. ¿En qué puedo ayudarte hoy?\n\n• Consultar stock\n• Precios\n• Agendar cita\n• Obras sociales\n• Ubicación y horarios`;
 
+    case 'farewell':
+      return `👋 ¡Fue un gusto ayudarte! No dudes en escribirme si tenés más preguntas.\n\n*Hypnottica* - Tu visión, nuestra pasión.`;
+
+    case 'health_insurance':
+      return `🏥 *Obras Sociales que aceptamos:*\n\n${config.obrasSociales.aceptadas.map(os => `• ${os}`).join('\n')}\n\n💡 *Requisitos:*\n${config.obrasSociales.requisitos.receta}\n\n📄 *Documentación:* ${config.obrasSociales.requisitos.documentacion}\n⏳ *Vigencia receta:* ${config.obrasSociales.requisitos.vigencia}\n${config.obrasSociales.requisitos.restricciones}`;
+
+    case 'price_query':
+      return `💲 *Precios de armazones:*\n${config.precios.rangoArmazones}\n\n💳 *Promociones:*\n${Object.entries(config.precios.promociones.cuotas).map(([key, value]) => `• ${key}: ${value}`).join('\n')}\n\n💰 *Descuento por pago en efectivo:* ${config.precios.promociones.descuentoEfectivo}`;
+
+    case 'brand_query':
+      const marcasArmazones = await googleSheetsService.obtenerTodosProductos();
+      const marcasUnicas = [...new Set(marcasArmazones.map(p => p.marca).filter(m => m !== 'N/A'))];
+      return `👓 *Marcas de armazones que trabajamos:*\n${marcasUnicas.map(m => `• ${m}`).join('\n')}\n\n👁️ *Marcas de lentes de contacto:*\n${config.productos.lentesContacto.marcas.map(m => `• ${m}`).join('\n')}`;
+
+    case 'stock_code_query':
+      const codigo = mensaje.split(' ')[1];
+      if (!codigo) {
+        return "❌ Por favor, indicá el código del producto. Ejemplo: `#stock AC-274`";
+      }
+      const producto = await googleSheetsService.buscarPorCodigo(codigo);
+      if (producto) {
+        return `📦 *${producto.marca} - ${producto.modelo}*\n\n🆔 Código: ${producto.codigo}\n👓 Tipo: ${producto.tipo_lente}\n📝 Descripción: ${producto.descripcion}\n💰 Precio: $${producto.precio}\n📊 Stock: ${producto.cantidad} unidades\n${producto.disponible ? '✅ DISPONIBLE' : '❌ SIN STOCK'}`;
+      } else {
+        return "❌ No se encontró ningún producto con ese código. ¿Podrías verificarlo?";
+      }
+
+    case 'stock_search_query':
+      // Aquí podrías implementar una búsqueda por descripción
+      return "🔍 Contame qué tipo de lentes buscás (por ejemplo: 'lentes de sol ray-ban') y te ayudo a encontrar opciones.";
+
+    case 'contact_lens_query':
+      const marcasLC = await googleSheetsService.obtenerMarcasLC();
+      return `👁️ *Lentes de contacto*\n\n📋 *Marcas disponibles:*\n${marcasLC.map(m => `• ${m}`).join('\n')}\n\n💡 *Tipos:* ${config.productos.lentesContacto.tipos.join(', ')}\n\n${config.productos.lentesContacto.nota}`;
+
+    case 'liquid_query':
+      const liquidos = await googleSheetsService.obtenerLiquidos();
+      return `🧴 *Líquidos para lentes de contacto:*\n\n${liquidos.map(l => `• ${l.marca} - ${l.tamaño}`).join('\n')}`;
+
+    case 'schedule_query':
+      return `⏰ *Horarios de atención:*\n${config.horarios}\n\n📍 ${config.direccion}`;
+
+    case 'location_query':
+      return `📍 *Nuestra dirección:*\n${config.direccion}\n\n⏰ *Horarios:* ${config.horarios}`;
+
+    case 'shipping_query':
+      return `🚚 *Envíos a domicilio:*\n${config.consultasFrecuentes.envios}`;
+
+    case 'financing_query':
+      return `💳 *Financiación:*\n${config.consultasFrecuentes.financiacion}`;
+
+    case 'frequent_question':
+      // Podrías tener un sistema de preguntas frecuentes más elaborado
+      return `🤔 *Preguntas frecuentes:*\n\n• Precios: ${config.consultasFrecuentes.precios}\n• Obras sociales: ${config.consultasFrecuentes.obrasSociales}\n• Tiempos de entrega: Particulares: ${config.consultasFrecuentes.tiempoEntrega.particulares}, Obra social: ${config.consultasFrecuentes.tiempoEntrega.obraSocial}\n• Ubicación: ${config.consultasFrecuentes.ubicacion}\n• Horarios: ${config.consultasFrecuentes.horarios}`;
+
+    default:
+      return `🤔 No estoy segura de entenderte. ¿Podrías decirlo de otra forma?\n\nPodés preguntarme por:\n• Stock de productos\n• Precios\n• Marcas\n• Horarios\n• Obras sociales\n\nO escribí *"hola"* para ver todas las opciones.`;
+  }
+}
+
+// Ruta para el probador web
 app.post('/probar-bot', async (req, res) => {
   try {
     const { mensaje } = req.body;
-    const respuesta = await procesarMensaje(mensaje);
-    res.json({ mensaje_original: mensaje, respuesta });
+    const respuesta = await procesarMensaje(mensaje, 'web-user');
+    res.json({ respuesta });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// ... (mantener tus otras rutas existentes)
+// Ruta de diagnóstico
+app.get('/debug-sheets', async (req, res) => {
+  try {
+    await googleSheetsService.initialize();
+    const armazones = await googleSheetsService.obtenerProductosDeSheet('STOCK ARMAZONES 1');
+    const lc = await googleSheetsService.obtenerProductosDeSheet('Stock LC');
+    const liquidos = await googleSheetsService.obtenerProductosDeSheet('Stock Liquidos');
 
+    res.json({
+      configuracion: {
+        sheets_id: process.env.GOOGLE_SHEETS_ID ? '✅ Configurado' : '❌ Faltante',
+        api_key: process.env.GOOGLE_API_KEY ? '✅ Configurado' : '❌ Faltante'
+      },
+      hojas: {
+        'STOCK ARMAZONES 1': { productos: armazones.length },
+        'Stock LC': { productos: lc.length },
+        'Stock Liquidos': { productos: liquidos.length }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Iniciar servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🤖 ${config.bot.nombre} funcionando en puerto ${PORT}`);
+  console.log(`🤖 ${config.personalidad.nombre} funcionando en puerto ${PORT}`);
 });
