@@ -1,21 +1,17 @@
+// src/services/memoryService.js
+
 class MemoryService {
   constructor() {
-    this.memoriaUsuarios = new Map();
+    this.memoria = new Map();
   }
 
-  async obtenerContextoUsuario(senderId) {
-    return this.memoriaUsuarios.get(senderId) || { 
-      paso: 0, 
-      datos: {}, 
-      ultimaInteraccion: Date.now(),
-      historial: [] 
-    };
+  async obtenerContextoUsuario(userId) {
+    return this.memoria.get(userId) || { paso: 0, historial: [] };
   }
 
-  async guardarContextoUsuario(senderId, contexto) {
-    contexto.ultimaInteraccion = Date.now();
-    this.memoriaUsuarios.set(senderId, contexto);
+  async guardarContextoUsuario(userId, contexto) {
+    this.memoria.set(userId, contexto);
   }
 }
 
-module.exports = new MemoryService();
+module.exports = MemoryService;
