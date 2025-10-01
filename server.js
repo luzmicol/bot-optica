@@ -161,166 +161,169 @@ class IntentRecognizer {
   }
 }
 
-// ==================== MANEJADOR DE RESPUESTAS ====================
+// ==================== MANEJADOR DE RESPUESTAS MEJORADO ====================
 class ResponseHandler {
   constructor() {
     this.recognizer = new IntentRecognizer();
   }
 
-  async generarRespuesta(mensaje, contexto = { paso: 0 }) {
+  async generarRespuesta(mensaje, contexto = { paso: 0, ultimoTema: null }) {
     const intent = this.recognizer.detectIntent(mensaje);
+    const mensajeLower = mensaje.toLowerCase();
     
+    // 🎯 RESPUESTAS MÁS CORTAS Y NATURALES
     switch (intent) {
       case 'saludo':
+        contexto.ultimoTema = 'saludo';
         return this.respuestaSaludo(contexto);
       
       case 'obra_social':
-        return this.respuestaObraSocial();
+        contexto.ultimoTema = 'obra_social';
+        return this.respuestaObraSocial(mensajeLower, contexto);
       
       case 'precio':
-        return this.respuestaPrecios();
+        contexto.ultimoTema = 'precio';
+        return this.respuestaPrecios(mensajeLower, contexto);
       
       case 'marca':
-        return this.respuestaMarcas();
+        contexto.ultimoTema = 'marca';
+        return this.respuestaMarcas(mensajeLower, contexto);
       
       case 'horario':
-        return this.respuestaHorarios();
+        contexto.ultimoTema = 'horario';
+        return "⏰ Abrimos de lunes a sábado de 10:30 a 19:30. ¿Te sirve algún día en particular?";
       
       case 'direccion':
-        return this.respuestaDireccion();
+        contexto.ultimoTema = 'direccion';
+        return "📍 Estamos en Serrano 684, Villa Crespo. ¿Necesitás indicaciones o el barrio?";
       
       case 'lentes_contacto':
-        return this.respuestaLentesContacto();
+        contexto.ultimoTema = 'lentes_contacto';
+        return this.respuestaLentesContacto(mensajeLower, contexto);
       
       case 'liquidos':
-        return this.respuestaLiquidos();
+        contexto.ultimoTema = 'liquidos';
+        return "🧴 Tenemos líquidos de varias marcas. ¿Usás alguna marca específica o te recomiendo?";
       
       case 'consulta_frecuente':
-        return this.respuestaConsultaFrecuente(mensaje);
+        return this.respuestaConsultaFrecuente(mensajeLower, contexto);
       
       case 'despedida':
-        return this.respuestaDespedida();
+        return "👋 ¡Chau! Cualquier cosa escribime 😊";
       
       default:
+        // Si no entendió pero estamos en medio de una conversación
+        if (contexto.ultimoTema) {
+          return this.continuarConversacion(contexto.ultimoTema, mensajeLower, contexto);
+        }
         return this.respuestaNoEntendido();
     }
   }
 
   respuestaSaludo(contexto) {
     contexto.paso = 1;
-    const emojis = ['👋', '👓', '🔍', '💡', '📍', '🌟'];
-    const emoji = emojis[Math.floor(Math.random() * emojis.length)];
-    
-    return `${emoji} ¡Hola! Soy *Luna*, tu asistente de *Hypnottica*. ¿En qué puedo ayudarte hoy?\n\n` +
-           `• 📦 Consultar stock\n` +
-           `• 💲 Precios y promociones\n` +
-           `• 🏥 Obras sociales\n` +
-           `• 👁️ Lentes de contacto\n` +
-           `• 📍 Ubicación y horarios\n` +
-           `• 🔧 Servicios técnicos`;
+    return "👋 ¡Hola! Soy Luna de Hypnottica. ¿En qué te ayudo hoy?";
   }
 
-  respuestaObraSocial() {
-    return `🏥 *Obras Sociales que aceptamos:*\n\n` +
-           `${HYPNOTTICA.obrasSociales.aceptadas.map(os => `• ${os}`).join('\n')}\n\n` +
-           `📋 *Requisitos:*\n` +
-           `• ${HYPNOTTICA.obrasSociales.requisitos.receta}\n` +
-           `• ${HYPNOTTICA.obrasSociales.requisitos.documentacion}\n` +
-           `• Vigencia: ${HYPNOTTICA.obrasSociales.requisitos.vigencia}\n\n` +
-           `💡 *Importante:* ${HYPNOTTICA.obrasSociales.requisitos.restricciones}`;
-  }
-
-  respuestaPrecios() {
-    return `💲 *Precios y Promociones*\n\n` +
-           `👓 *Armazones:* ${HYPNOTTICA.precios.rangoArmazones}\n\n` +
-           `🎉 *Promociones vigentes:*\n` +
-           `${HYPNOTTICA.precios.promociones.map(p => `• ${p}`).join('\n')}\n\n` +
-           `💳 *Medios de pago:* ${HYPNOTTICA.precios.mediosPago.join(', ')}`;
-  }
-
-  respuestaMarcas() {
-    return `👓 *Marcas que trabajamos:*\n\n` +
-           `• Ray-Ban\n` +
-           `• Oakley\n` +
-           `• Vulk\n` +
-           `• Y muchas más!\n\n` +
-           `👁️ *Lentes de contacto:* ${HYPNOTTICA.productos.lentesContacto.marcas.join(', ')}\n\n` +
-           `¿Te interesa alguna marca en particular?`;
-  }
-
-  respuestaHorarios() {
-    return `⏰ *Horarios de atención:*\n\n` +
-           `${HYPNOTTICA.informacion.horarios}\n\n` +
-           `📍 ${HYPNOTTICA.informacion.direccion}\n\n` +
-           `📞 ${HYPNOTTICA.informacion.telefono}`;
-  }
-
-  respuestaDireccion() {
-    return `📍 *Nuestra dirección:*\n\n` +
-           `${HYPNOTTICA.informacion.direccion}\n\n` +
-           `⏰ *Horarios:* ${HYPNOTTICA.informacion.horarios}\n\n` +
-           `📱 *Seguinos:* ${HYPNOTTICA.informacion.redes}`;
-  }
-
-  respuestaLentesContacto() {
-    return `👁️ *¡Sí! Trabajamos con lentes de contacto* ✅\n\n` +
-           `🏷️ *Marcas disponibles:*\n` +
-           `${HYPNOTTICA.productos.lentesContacto.marcas.map(m => `• ${m}`).join('\n')}\n\n` +
-           `📋 *Tipos:* ${HYPNOTTICA.productos.lentesContacto.tipos.join(', ')}\n\n` +
-           `💡 *Nota:* ${HYPNOTTICA.productos.lentesContacto.nota}\n\n` +
-           `⏰ *Tiempo de entrega por obra social:* ${HYPNOTTICA.tiemposEntrega.lentesContactoOS}\n\n` +
-           `¿Qué marca te interesa o ya usás alguna?`;
-  }
-
-  respuestaLiquidos() {
-    return `🧴 *Líquidos para lentes de contacto*\n\n` +
-           `📦 *Productos disponibles:*\n` +
-           `• Renu - 300ml\n` +
-           `• Opti-Free - 360ml\n` +
-           `• BioTrue - 300ml\n` +
-           `• Y más marcas\n\n` +
-           `💲 *Precios promocionales* todos los meses\n` +
-           `🎁 *Descuentos* por cantidad\n\n` +
-           `¿Te interesa algún producto en particular?`;
-  }
-
-  respuestaConsultaFrecuente(mensaje) {
-    if (mensaje.includes('envio') || mensaje.includes('domicilio')) {
-      return `🚚 *Envíos a domicilio:*\n\n` +
-             `Sí, en algunos casos. Sin embargo, recomendamos siempre retirar en persona para realizar el control final con los lentes puestos.`;
+  respuestaObraSocial(mensaje, contexto) {
+    if (mensaje.includes('medicus') || mensaje.includes('swiss') || mensaje.includes('osetya') || mensaje.includes('construir')) {
+      return "✅ Sí, trabajamos con esa obra social. ¿Tenés la receta? La vigencia es de 60 días.";
     }
     
-    if (mensaje.includes('financiacion') || mensaje.includes('cuota')) {
-      return `💳 *Financiación:*\n\n` +
-             `Sí, contamos con planes en cuotas sin interés:\n` +
-             `${HYPNOTTICA.precios.promociones.map(p => `• ${p}`).join('\n')}`;
+    if (mensaje.includes('requisito') || mensaje.includes('documento')) {
+      return "📋 Necesitás receta con el tipo de lente específico, credencial y que esté vigente (60 días).";
+    }
+    
+    return "🏥 Trabajamos con Medicus, Swiss Medical, Osetya y Construir Salud. ¿Cuál tenés?";
+  }
+
+  respuestaPrecios(mensaje, contexto) {
+    if (mensaje.includes('armazon') || mensaje.includes('lente') || mensaje.includes('anteojo')) {
+      return "👓 Los armazones arrancan en $55.000. ¿Buscás algo en particular?";
+    }
+    
+    if (mensaje.includes('contacto') || mensaje.includes('lentilla')) {
+      return "👁️ Los lentes de contacto varían según la marca y tipo. ¿Usás alguno actualmente?";
+    }
+    
+    if (mensaje.includes('promo') || mensaje.includes('cuota') || mensaje.includes('descuento')) {
+      return "💳 Tenemos cuotas sin interés y 10% en efectivo. ¿Qué te interesa?";
+    }
+    
+    return "💲 Los precios dependen del producto. ¿Armazones, lentes de contacto o accesorios?";
+  }
+
+  respuestaMarcas(mensaje, contexto) {
+    if (mensaje.includes('ray-ban') || mensaje.includes('oakley') || mensaje.includes('vulk')) {
+      return `✅ Sí, trabajamos con ${mensaje.includes('ray-ban') ? 'Ray-Ban' : mensaje.includes('oakley') ? 'Oakley' : 'Vulk'}. Tenemos varios modelos.`;
+    }
+    
+    if (mensaje.includes('contacto') || mensaje.includes('acuvue') || mensaje.includes('biofinity')) {
+      return "👁️ De lentes de contacto tenemos Acuvue, Biofinity y Air Optix. ¿Alguna te interesa?";
+    }
+    
+    return "👓 Trabajamos con Ray-Ban, Oakley, Vulk y más. ¿Te gusta alguna marca en especial?";
+  }
+
+  respuestaLentesContacto(mensaje, contexto) {
+    if (mensaje.includes('marca') || mensaje.includes('acuvue') || mensaje.includes('biofinity')) {
+      return "👁️ Tenemos Acuvue, Biofinity y Air Optix. ¿Probaste alguna?";
+    }
+    
+    if (mensaje.includes('tipo') || mensaje.includes('diario') || mensaje.includes('mensual')) {
+      return "📅 Los hay diarios, mensuales y anuales. Los diarios son los más prácticos para empezar.";
+    }
+    
+    if (mensaje.includes('primera vez') || mensaje.includes('empezar') || mensaje.includes('nuevo')) {
+      return "🎯 Para primera vez te recomiendo una consulta para ver qué te conviene más. ¿Ya tenés receta?";
+    }
+    
+    return "👁️ ¡Sí! Trabajamos con lentes de contacto. ¿Es tu primera vez o ya usás?";
+  }
+
+  respuestaConsultaFrecuente(mensaje, contexto) {
+    if (mensaje.includes('envio') || mensaje.includes('domicilio')) {
+      return "🚚 Hacemos envíos, pero recomendamos retirar acá para probártelos bien.";
+    }
+    
+    if (mensaje.includes('tiempo') || mensaje.includes('entrega') || mensaje.includes('demora')) {
+      if (mensaje.includes('obra social')) {
+        return "⏳ Por obra social son 2 semanas aproximadamente.";
+      }
+      return "⏱️ Los particulares los tenemos en 1-7 días según el cristal.";
     }
     
     if (mensaje.includes('receta')) {
-      return `📄 *Recetas médicas:*\n\n` +
-             `Sí, aceptamos recetas y podemos corroborar la refracción indicada por el médico.`;
+      return "📄 Sí, aceptamos recetas. La vigencia es de 60 días.";
     }
     
     return this.respuestaNoEntendido();
   }
 
-  respuestaDespedida() {
-    const emojis = ['👋', '🌟', '💫', '✨'];
-    const emoji = emojis[Math.floor(Math.random() * emojis.length)];
-    return `${emoji} ¡Fue un gusto ayudarte! No dudes en escribirme si tenés más preguntas.\n\n` +
-           `*Hypnottica* - Tu visión, nuestra pasión.`;
+  continuarConversacion(ultimoTema, mensaje, contexto) {
+    switch (ultimoTema) {
+      case 'obra_social':
+        if (mensaje.includes('si') || mensaje.includes('tengo')) {
+          return "Perfecto 😊 ¿Querés pedir turno o necesitás más info?";
+        }
+        return "¿Tenés alguna obra social en mente o te cuento más?";
+      
+      case 'lentes_contacto':
+        if (mensaje.includes('si') || mensaje.includes('uso') || mensaje.includes('actual')) {
+          return "¡Bien! ¿Qué marca usás? Así vemos si tenemos.";
+        }
+        return "¿Te interesa probar o necesitás info de precios?";
+      
+      case 'precio':
+        return "¿Te interesa algún producto en particular para darte precio exacto?";
+      
+      default:
+        return "¿Necesitás que te ayude con algo más?";
+    }
   }
 
   respuestaNoEntendido() {
-    return `🤔 No estoy segura de entenderte. ¿Podrías decirlo de otra forma?\n\n` +
-           `Podés preguntarme por:\n` +
-           `• 📦 Stock de productos\n` +
-           `• 💲 Precios y promociones\n` +
-           `• 🏥 Obras sociales\n` +
-           `• 👁️ Lentes de contacto\n` +
-           `• ⏰ Horarios\n` +
-           `• 📍 Ubicación\n\n` +
-           `O escribí *"hola"* para ver todas las opciones.`;
+    return "🤔 No te entendí bien. ¿Podés decirlo de otra forma?";
   }
 }
 // ==================== SERVICIOS EXTERNOS ====================
