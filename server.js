@@ -83,11 +83,12 @@ const HYPNOTTICA = {
   }
 };
 
-// ==================== SISTEMA DE INTENCIONES ====================
+// ==================== SISTEMA DE INTENCIONES MEJORADO ====================
 class IntentRecognizer {
   detectIntent(mensaje) {
-    const mensajeLower = mensaje.toLowerCase();
+    const mensajeLower = mensaje.toLowerCase().trim();
     
+    // 🎯 DETECCIÓN MÁS INTELIGENTE Y FLEXIBLE
     if (this.esSaludo(mensajeLower)) return 'saludo';
     if (this.esDespedida(mensajeLower)) return 'despedida';
     if (this.esObraSocial(mensajeLower)) return 'obra_social';
@@ -104,60 +105,118 @@ class IntentRecognizer {
   }
 
   esSaludo(mensaje) {
-    return HYPNOTTICA.palabrasClave.saludos.some(saludo => 
-      mensaje.includes(saludo)
-    );
+    const patronesSaludo = [
+      'hola', 'buenas', 'holis', 'hey', 'qué tal', 'cómo andás', 'cómo andan',
+      'buen día', 'buenas tardes', 'buenas noches', 'qué hacés', 'cómo va',
+      'saludos', 'ey', 'buenas', 'todo bien', 'holaaa', 'hi', 'hello',
+      'buenass', 'que tal', 'como estas', 'cómo estás', 'que onda'
+    ];
+    return patronesSaludo.some(saludo => mensaje.includes(saludo));
   }
 
   esDespedida(mensaje) {
-    return HYPNOTTICA.palabrasClave.despedidas.some(despedida => 
-      mensaje.includes(despedida)
-    );
+    const patronesDespedida = [
+      'chau', 'gracias', 'nos vemos', 'adiós', 'hasta luego', 'hasta pronto',
+      'hasta mañana', 'hasta la próxima', 'cuidate', 'cuídense', 'un saludo',
+      'suerte', 'que estés bien', 'que les vaya bien', 'abrazo', 'besos',
+      'hablamos', 'chaooo', 'bye', 'goodbye', 'adios', 'chao', 'asta luego'
+    ];
+    return patronesDespedida.some(despedida => mensaje.includes(despedida));
   }
 
   esObraSocial(mensaje) {
-    const palabrasOS = ['obra social', 'prepaga', 'swiss medical', 'medicus', 'osetya', 'construir salud'];
-    return palabrasOS.some(palabra => mensaje.includes(palabra));
+    const patronesOS = [
+      'obra social', 'prepaga', 'swiss medical', 'medicus', 'osetya', 
+      'construir salud', 'obras sociales', 'cobertura', 'plan médico',
+      'trabajan con', 'aceptan', 'tienen convenio', 'seguro', 'medical',
+      'os', 'prepaga'
+    ];
+    return patronesOS.some(palabra => mensaje.includes(palabra));
   }
 
   esStock(mensaje) {
-    return mensaje.includes('stock') || mensaje.includes('#stock') || 
-           mensaje.includes('tenes') || mensaje.includes('tienen');
+    const patronesStock = [
+      'stock', 'tenes', 'tienen', 'disponible', 'hay', 'queda', 'venden',
+      'conseguir', 'proveen', 'ofrecen', 'trabajan con', 'venden',
+      'qué tienen', 'que tienen', 'que tenes', 'qué tenes'
+    ];
+    return patronesStock.some(palabra => mensaje.includes(palabra));
   }
 
   esPrecio(mensaje) {
-    return mensaje.includes('precio') || mensaje.includes('cuesta') || 
-           mensaje.includes('cuanto sale') || mensaje.includes('valor');
+    const patronesPrecio = [
+      'precio', 'cuesta', 'cuanto sale', 'valor', 'cuánto', 'precios',
+      'cuestan', 'sale', 'valen', 'cotización', 'presupuesto', 'tarifa',
+      'caro', 'barato', 'económico', 'costó', 'pagué', 'pagar', 'dinero',
+      '$', 'pesos'
+    ];
+    return patronesPrecio.some(palabra => mensaje.includes(palabra));
   }
 
   esMarca(mensaje) {
-    return mensaje.includes('marca') || mensaje.includes('ray-ban') || 
-           mensaje.includes('oakley') || mensaje.includes('marcas');
+    const patronesMarca = [
+      'marca', 'ray-ban', 'oakley', 'marcas', 'vulk', 'acuvue', 'biofinity',
+      'air optix', 'modelo', 'fabricante', 'empresa', 'brand', 'modelos',
+      'qué marca', 'que marca', 'ray ban', 'air optix'
+    ];
+    return patronesMarca.some(palabra => mensaje.includes(palabra));
   }
 
   esHorario(mensaje) {
-    return mensaje.includes('horario') || mensaje.includes('hora') || 
-           mensaje.includes('abren') || mensaje.includes('cierran');
+    const patronesHorario = [
+      'horario', 'hora', 'abren', 'cierran', 'atención', 'atencion',
+      'cuando abren', 'cuándo abren', 'cuando cierran', 'cuándo cierran',
+      'abierto', 'cerrado', 'funcionan', 'laboral', 'días', 'dias',
+      'lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes',
+      'sábado', 'sabado', 'domingo', 'fin de semana'
+    ];
+    return patronesHorario.some(palabra => mensaje.includes(palabra));
   }
 
   esDireccion(mensaje) {
-    return mensaje.includes('direccion') || mensaje.includes('ubicacion') || 
-           mensaje.includes('donde estan') || mensaje.includes('ubicados');
+    const patronesDireccion = [
+      'direccion', 'ubicacion', 'donde estan', 'ubicados', 'dirección',
+      'ubicación', 'dónde', 'donde', 'local', 'negocio', 'tienda',
+      'comercio', 'lugar', 'sitio', 'address', 'location', 'mapa',
+      'como llegar', 'cómo llegar', 'zona', 'barrio', 'villa crespo',
+      'serrano'
+    ];
+    return patronesDireccion.some(palabra => mensaje.includes(palabra));
   }
 
   esLentesContacto(mensaje) {
-    return mensaje.includes('lentes de contacto') || mensaje.includes('lentillas') || 
-           mensaje.includes('pupilentes') || mensaje.includes('contacto');
+    const patronesLC = [
+      'lentes de contacto', 'lentillas', 'pupilentes', 'contacto',
+      'lentes contacto', 'lentilla', 'contact lens', 'lentescontacto',
+      'lentillas de contacto', 'pupilente', 'lentescontactos',
+      'lentes de contactos', 'lentillas contacto', 'lentescontact',
+      'qué lentes de contacto', 'que lentes de contacto', 'lentes contacto tienen',
+      'lentillas tienen', 'contactos tienen'
+    ];
+    return patronesLC.some(palabra => mensaje.includes(palabra));
   }
 
   esLiquidos(mensaje) {
-    return mensaje.includes('líquido') || mensaje.includes('liquido') || 
-           mensaje.includes('solucion') || mensaje.includes('solución');
+    const patronesLiquidos = [
+      'líquido', 'liquido', 'solucion', 'solución', 'liquidos', 'líquidos',
+      'soluciones', 'producto limpieza', 'limpieza lentes', 'limpiar',
+      'limpiador', 'humectante', 'gotas', 'eye drops', 'solution',
+      'qué líquido', 'que liquido', 'líquidos tienen', 'liquidos tienen',
+      'solucion tienen', 'solución tienen', 'recomendación líquido',
+      'recomendacion liquido'
+    ];
+    return patronesLiquidos.some(palabra => mensaje.includes(palabra));
   }
 
   esConsultaFrecuente(mensaje) {
-    const consultas = ['envio', 'envío', 'domicilio', 'financiacion', 'cuota', 'receta'];
-    return consultas.some(consulta => mensaje.includes(consulta));
+    const patronesConsulta = [
+      'envio', 'envío', 'domicilio', 'financiacion', 'cuota', 'receta',
+      'entrega', 'tiempo', 'demora', 'cuándo', 'cuando', 'forma de pago',
+      'medio de pago', 'tarjeta', 'efectivo', 'transferencia', 'qr',
+      'descuento', 'promo', 'promoción', 'oferta', 'rebaja', 'bonificación',
+      'primera vez', 'nuevo', 'empezar', 'iniciar', 'comenzar'
+    ];
+    return patronesConsulta.some(consulta => mensaje.includes(consulta));
   }
 }
 
