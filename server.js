@@ -1,11 +1,11 @@
 const express = require('express');
 
-// 🟢 CORREGIR IMPORTACIONES - USAR RUTAS CORRECTAS
+// 🟢 CORREGIR IMPORTACIONES
 const { config } = require('./src/config/environment');
 const GoogleSheetsService = require('./src/services/googleSheetsService');
 const memoryService = require('./src/services/memoryService');
 
-// 🟢 INSTANCIAR EL SERVICIO CORRECTAMENTE
+// 🟢 INSTANCIAR EL SERVICIO
 const googleSheetsService = new GoogleSheetsService();
 
 const app = express();
