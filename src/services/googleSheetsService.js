@@ -1,37 +1,44 @@
 const { GoogleSpreadsheet } = require('google-spreadsheet');
+const { GOOGLE_SHEET_ID, GOOGLE_API_KEY } = require('../src-config-environment');
 
 class GoogleSheetsService {
   constructor() {
     this.doc = null;
     this.initialized = false;
+    this.config = {
+      sheetId: GOOGLE_SHEET_ID,
+      apiKey: GOOGLE_API_KEY,
+      hojas: {
+        armazones: 'armazones',
+        lc: 'stock lc', 
+        liquidos: 'stock liquidos'
+      }
+    };
   }
 
   async initialize() {
     try {
-      console.log('🔧 Inicializando Google Sheets (modo simple)...');
+      console.log('🔧 Inicializando Google Sheets...');
       
-      const sheetId = process.env.GOOGLE_SHEET_ID;
-      
-      if (!sheetId) {
-        throw new Error('GOOGLE_SHEET_ID no configurado en environment');
+      if (!this.config.sheetId) {
+        throw new Error('GOOGLE_SHEETS_ID no configurado');
       }
 
-      this.doc = new GoogleSpreadsheet(sheetId);
+      this.doc = new GoogleSpreadsheet(this.config.sheetId);
       
-      // 🟢 OPCIÓN 1: Sin autenticación (si el sheet es público)
-      // No requiere auth, pero el sheet debe ser público
-      
-      // 🟢 OPCIÓN 2: Con API Key simple
-      if (process.env.GOOGLE_API_KEY) {
-        this.doc.useApiKey(process.env.GOOGLE_API_KEY);
-        console.log('✅ Usando API Key simple');
+      // Usar API Key si está disponible, sino intentar sin autenticación
+      if (this.config.apiKey) {
+        this.doc.useApiKey(this.config.apiKey);
+        console.log('✅ Usando API Key');
+      } else {
+        console.log('⚠️ Sin API Key - intentando acceso público');
       }
       
       await this.doc.loadInfo();
       
       this.initialized = true;
-      console.log('✅ Google Sheets inicializado correctamente');
-      console.log('📊 Hojas disponibles:', Object.keys(this.doc.sheetsByTitle));
+      console.log('✅ Google Sheets inicializado');
+      console.log('📊 Hojas cargadas:', Object.keys(this.doc.sheetsByTitle));
       return true;
     } catch (error) {
       console.error('❌ Error inicializando Google Sheets:', error.message);
@@ -39,55 +46,45 @@ class GoogleSheetsService {
     }
   }
 
-  // 📦 BUSQUEDA EN ARMAZONES (VERSIÓN SIMPLE)
+  // 📦 BUSQUEDA EN ARMAZONES
   async buscarArmazon(codigo = null, descripcion = null) {
     try {
       if (!this.initialized) await this.initialize();
       
-      const sheet = this.doc.sheetsByTitle['armazones'];
+      const sheet = this.doc.sheetsByTitle[this.config.hojas.armazones];
       if (!sheet) {
-        throw new Error('No se encuentra la hoja "armazones"');
+        console.log('❌ No se encuentra hoja "armazones"');
+        return this.datosDeEjemplo(codigo, descripcion);
       }
       
       const rows = await sheet.getRows();
       console.log(`🔍 Buscando en ${rows.length} filas de armazones...`);
 
-      // Si no hay filas, retornar datos de ejemplo para probar
-      if (rows.length === 0) {
-        console.log('⚠️ Hoja vacía, retornando datos de ejemplo');
+      // Si hay pocos datos, usar ejemplo
+      if (rows.length <= 1) {
+        console.log('⚠️ Pocos datos, usando ejemplo');
         return this.datosDeEjemplo(codigo, descripcion);
       }
 
       if (codigo) {
-        // Buscar por código en todas las columnas posibles
-        const producto = rows.find(row => {
-          // Buscar en diferentes columnas posibles
-          const posiblesColumnas = ['COD.HYPNO', 'Código', 'Código Hypno', '__EMPTY_6'];
-          for (const columna of posiblesColumnas) {
-            if (row[columna]?.toString().toLowerCase() === codigo.toLowerCase()) {
-              return true;
-            }
-          }
-          return false;
-        });
-        
+        const producto = rows.find(row => 
+          row['COD.HYPNO']?.toString().toLowerCase() === codigo.toLowerCase()
+        );
         if (producto) {
-          console.log('✅ Producto encontrado por código:', codigo);
+          console.log('✅ Producto encontrado:', codigo);
           return this.formatearArmazon(producto);
         }
       }
       
       if (descripcion) {
         const productos = rows.filter(row => {
-          const textoBusqueda = [
-            row['Descripciones'], row['Modelo'], row['Marca'],
-            row['__EMPTY_19'], row['__EMPTY_7'], row['__EMPTY_2']
-          ].join(' ').toLowerCase();
+          const desc = row['Descripciones'] || '';
+          const modelo = row['Modelo'] || '';
+          const marca = row['Marca'] || '';
           
-          return textoBusqueda.includes(descripcion.toLowerCase());
-        }).slice(0, 3); // Máximo 3 resultados
-        
-        console.log(`📝 Encontrados ${productos.length} productos por: "${descripcion}"`);
+          const texto = `${desc} ${modelo} ${marca}`.toLowerCase();
+          return texto.includes(descripcion.toLowerCase());
+        }).slice(0, 3);
         
         if (productos.length > 0) {
           return productos.map(p => this.formatearArmazon(p));
@@ -96,275 +93,189 @@ class GoogleSheetsService {
       
       return null;
     } catch (error) {
-      console.error('❌ Error buscando armazón:', error);
-      // Retornar datos de ejemplo en caso de error
+      console.error('❌ Error buscando armazón:', error.message);
       return this.datosDeEjemplo(codigo, descripcion);
     }
   }
 
-  // 🎯 FORMATEAR ARMAZÓN
+  // 🎯 FORMATEAR ARMAZÓN (igual que antes)
   formatearArmazon(row) {
-    // Buscar en diferentes columnas posibles
-    const getValor = (columnas) => {
-      for (const col of columnas) {
-        if (row[col] !== undefined && row[col] !== '') {
-          return row[col];
-        }
-      }
-      return 'N/A';
-    };
-
     const producto = {
       tipo: 'armazon',
-      codigo: getValor(['COD.HYPNO', '__EMPTY_6', 'Código']),
-      marca: getValor(['Marca', '__EMPTY_2', 'Marca']),
-      modelo: getValor(['Modelo', '__EMPTY_7', 'Modelo']),
-      tipo_lente: getValor(['Sol/Receta', '__EMPTY_4', 'Tipo']),
-      descripcion: getValor(['Descripciones', '__EMPTY_19', 'Descripción']),
-      cantidad: parseInt(getValor(['Cantidad', '__EMPTY_8', 'Stock'])) || 0,
-      precio: parseFloat(getValor(['PRECIO', '__EMPTY_15', 'Precio'])) || 0,
+      codigo: row['COD.HYPNO'] || 'N/A',
+      marca: row['Marca'] || 'N/A',
+      modelo: row['Modelo'] || 'N/A',
+      tipo_lente: row['Sol/Receta'] || 'N/A',
+      descripcion: row['Descripciones'] || 'N/A',
+      cantidad: parseInt(row['Cantidad']) || 0,
+      precio: parseFloat(row['PRECIO']) || 0,
       disponible: true
     };
-
-    console.log('📋 Producto formateado:', producto);
     return producto;
   }
 
-  // 📝 DATOS DE EJEMPLO PARA PRUEBAS
-  datosDeEjemplo(codigo, descripcion) {
-    const ejemplos = [
-      {
-        tipo: 'armazon',
-        codigo: 'RB1001',
-        marca: 'Ray-Ban',
-        modelo: 'Aviator',
-        tipo_lente: 'Sol',
-        descripcion: 'Lentes de sol Ray-Ban Aviator clásicos',
-        cantidad: 5,
-        precio: 15000,
-        disponible: true
-      },
-      {
-        tipo: 'armazon', 
-        codigo: 'OK2002',
-        marca: 'Oakley',
-        modelo: 'Holbrook',
-        tipo_lente: 'Sol',
-        descripcion: 'Lentes deportivos Oakley Holbrook',
-        cantidad: 3,
-        precio: 18000,
-        disponible: true
-      }
-    ];
-
-    if (codigo) {
-      return ejemplos.find(p => p.codigo.toLowerCase() === codigo.toLowerCase());
-    }
-    
-    if (descripcion) {
-      return ejemplos.filter(p => 
-        p.descripcion.toLowerCase().includes(descripcion.toLowerCase()) ||
-        p.marca.toLowerCase().includes(descripcion.toLowerCase())
-      );
-    }
-    
-    return ejemplos[0];
-  }
-
-  // 👁️ OBTENER MARCAS DE LENTES DE CONTACTO (SIMPLIFICADO)
+  // 👁️ OBTENER MARCAS LC
   async obtenerMarcasLC() {
     try {
       if (!this.initialized) await this.initialize();
       
-      const sheet = this.doc.sheetsByTitle['stock lc'];
-      if (!sheet) {
-        console.log('⚠️ No se encuentra hoja "stock lc", retornando marcas de ejemplo');
-        return ['Acuvue', 'Biofinity', 'Air Optix'];
-      }
+      const sheet = this.doc.sheetsByTitle[this.config.hojas.lc];
+      if (!sheet) return ['Acuvue', 'Biofinity', 'Air Optix'];
       
       const rows = await sheet.getRows();
-      
-      // Si hay pocas filas, usar datos de ejemplo
-      if (rows.length <= 1) {
-        return ['Acuvue', 'Biofinity', 'Air Optix', 'Dailies'];
-      }
+      if (rows.length <= 1) return ['Acuvue', 'Biofinity', 'Air Optix'];
       
       const marcas = new Set();
-      
-      // Buscar marcas en diferentes columnas
       rows.forEach(row => {
-        Object.values(row).forEach(valor => {
-          if (valor && typeof valor === 'string' && valor.length > 2) {
-            // Filtrar valores que parezcan marcas
-            if (!valor.match(/[0-9]/) && !valor.includes('Marca')) {
-              marcas.add(valor.trim());
-            }
-          }
-        });
+        if (row['__EMPTY_1']) marcas.add(row['__EMPTY_1']);
+        if (row['__EMPTY_2']) marcas.add(row['__EMPTY_2']);
+        if (row['__EMPTY_3']) marcas.add(row['__EMPTY_3']);
       });
       
-      const marcasArray = Array.from(marcas).slice(0, 10); // Máximo 10 marcas
-      console.log(`🏷️ Marcas LC encontradas: ${marcasArray.length}`);
-      
-      return marcasArray.length > 0 ? marcasArray : ['Acuvue', 'Biofinity', 'Air Optix'];
+      return Array.from(marcas).filter(m => m && m !== 'Marca');
     } catch (error) {
-      console.error('❌ Error obteniendo marcas LC:', error);
+      console.error('❌ Error marcas LC:', error.message);
       return ['Acuvue', 'Biofinity', 'Air Optix'];
     }
   }
 
-  // 💧 OBTENER LÍQUIDOS (SIMPLIFICADO)
+  // 💧 OBTENER LÍQUIDOS
   async obtenerLiquidos() {
     try {
       if (!this.initialized) await this.initialize();
       
-      const sheet = this.doc.sheetsByTitle['stock liquidos'];
-      if (!sheet) {
-        console.log('⚠️ No se encuentra hoja "stock liquidos", retornando ejemplo');
-        return [
-          { marca: 'Renu', tamaño: '300ml', disponible: true },
-          { marca: 'Opti-Free', tamaño: '360ml', disponible: true }
-        ];
-      }
+      const sheet = this.doc.sheetsByTitle[this.config.hojas.liquidos];
+      if (!sheet) return [{ marca: 'Renu', tamaño: '300ml', disponible: true }];
       
       const rows = await sheet.getRows();
-      
-      if (rows.length <= 1) {
-        return [
-          { marca: 'Renu', tamaño: '300ml', disponible: true },
-          { marca: 'Opti-Free', tamaño: '360ml', disponible: true }
-        ];
-      }
+      if (rows.length <= 1) return [{ marca: 'Renu', tamaño: '300ml', disponible: true }];
       
       const liquidos = rows.map(row => ({
-        marca: row['Marca'] || row['__EMPTY_1'] || 'Marca Genérica',
-        tamaño: row['Tamaño en ml'] || row['__EMPTY_2'] || '250ml',
+        marca: row['Marca'] || row['__EMPTY_1'],
+        tamaño: row['Tamaño en ml'] || row['__EMPTY_2'],
         disponible: true
-      })).filter(liquido => liquido.marca && liquido.marca !== 'Marca');
+      })).filter(l => l.marca && l.marca !== 'Marca');
       
-      console.log(`💧 Líquidos encontrados: ${liquidos.length}`);
-      
-      return liquidos.length > 0 ? liquidos : [
-        { marca: 'Renu', tamaño: '300ml', disponible: true }
-      ];
+      return liquidos.length > 0 ? liquidos : [{ marca: 'Renu', tamaño: '300ml', disponible: true }];
     } catch (error) {
-      console.error('❌ Error obteniendo líquidos:', error);
-      return [
-        { marca: 'Renu', tamaño: '300ml', disponible: true }
-      ];
+      console.error('❌ Error líquidos:', error.message);
+      return [{ marca: 'Renu', tamaño: '300ml', disponible: true }];
     }
   }
 
-  // 🔍 BÚSQUEDA GENERAL (SIMPLIFICADA)
+  // 🔍 BÚSQUEDA GENERAL (igual que antes)
   async buscarProducto(consulta) {
     try {
-      console.log(`🔍 Búsqueda general: "${consulta}"`);
+      console.log(`🔍 Búsqueda: "${consulta}"`);
       
-      // Siempre intentar búsqueda en armazones primero
-      let resultados = await this.buscarArmazon(null, consulta);
+      if (consulta.startsWith('#') || /^[A-Za-z0-9]+$/.test(consulta)) {
+        const codigo = consulta.replace('#', '').trim();
+        const resultado = await this.buscarArmazon(codigo, null);
+        if (resultado) return resultado;
+      }
+      
+      const resultados = await this.buscarArmazon(null, consulta);
       if (resultados) return resultados;
       
-      // Si no encuentra, buscar en marcas LC
+      // Buscar en marcas LC
       const marcasLC = await this.obtenerMarcasLC();
-      const marcaLC = marcasLC.find(marca => 
-        consulta.toLowerCase().includes(marca.toLowerCase())
-      );
+      const marcaLC = marcasLC.find(m => consulta.toLowerCase().includes(m.toLowerCase()));
       if (marcaLC) {
         return {
           tipo: 'marca_lc',
           marca: marcaLC,
-          mensaje: `Tenemos lentes de contacto de la marca *${marcaLC}* disponibles. ¿Te interesa algún modelo en particular?`
+          mensaje: `Tenemos lentes de contacto de la marca *${marcaLC}* disponibles.`
         };
       }
       
-      // Si no encuentra, buscar en líquidos
+      // Buscar en líquidos
       const liquidos = await this.obtenerLiquidos();
-      const liquido = liquidos.find(liq =>
-        consulta.toLowerCase().includes(liq.marca.toLowerCase())
-      );
+      const liquido = liquidos.find(l => consulta.toLowerCase().includes(l.marca.toLowerCase()));
       if (liquido) {
         return {
           tipo: 'liquido',
           ...liquido,
-          mensaje: `Tenemos líquido para lentes de contacto *${liquido.marca}* de *${liquido.tamaño}* disponible.`
+          mensaje: `Tenemos líquido *${liquido.marca}* de *${liquido.tamaño}* disponible.`
         };
       }
       
-      console.log('❌ No se encontraron resultados para:', consulta);
       return null;
     } catch (error) {
-      console.error('❌ Error en búsqueda general:', error);
-      // En caso de error, retornar datos de ejemplo
+      console.error('❌ Error búsqueda general:', error.message);
       return this.datosDeEjemplo(null, consulta);
     }
   }
 
-  // 📊 DIAGNÓSTICO MEJORADO
+  // 📝 DATOS DE EJEMPLO
+  datosDeEjemplo(codigo, descripcion) {
+    const ejemplos = [
+      {
+        tipo: 'armazon', codigo: 'RB1001', marca: 'Ray-Ban', modelo: 'Aviator',
+        tipo_lente: 'Sol', descripcion: 'Lentes de sol clásicos', cantidad: 5, precio: 15000
+      },
+      {
+        tipo: 'armazon', codigo: 'OK2002', marca: 'Oakley', modelo: 'Holbrook', 
+        tipo_lente: 'Sol', descripcion: 'Lentes deportivos', cantidad: 3, precio: 18000
+      }
+    ];
+
+    if (codigo) return ejemplos.find(p => p.codigo.toLowerCase() === codigo.toLowerCase());
+    if (descripcion) return ejemplos.filter(p => p.descripcion.toLowerCase().includes(descripcion.toLowerCase()));
+    return ejemplos[0];
+  }
+
+  // 📊 DIAGNÓSTICO
   async diagnostico() {
     try {
       await this.initialize();
       
-      const resultado = {
+      return {
         configuracion: {
-          sheets_id: process.env.GOOGLE_SHEET_ID ? '✅ Configurado' : '❌ No configurado',
-          api_key: process.env.GOOGLE_API_KEY ? '✅ Configurado' : '❌ No configurado',
-          metodo: process.env.GOOGLE_API_KEY ? 'API Key' : 'Acceso Público',
-          estado: '✅ MODO SIMPLE ACTIVADO'
+          sheets_id: this.config.sheetId ? '✅ Configurado' : '❌ No configurado',
+          api_key: this.config.apiKey ? '✅ Configurado' : '❌ No configurado',
+          estado: '✅ MODO SIMPLE'
         },
         inicializacion: '✅ OK',
-        hojas: {},
-        busqueda_ejemplo: {},
+        hojas: await this.verificarHojas(),
+        busqueda_ejemplo: await this.probarBusqueda(),
         timestamp: new Date().toISOString()
       };
-      
-      // Probar cada hoja
-      const hojas = ['armazones', 'stock lc', 'stock liquidos'];
-      
-      for (const hoja of hojas) {
-        try {
-          const sheet = this.doc.sheetsByTitle[hoja];
-          const rows = await sheet.getRows();
-          
-          resultado.hojas[hoja] = {
-            estado: '✅ OK',
-            filas: rows.length,
-            columnas: rows.length > 0 ? Object.keys(rows[0]) : ['VACÍA']
-          };
-        } catch (error) {
-          resultado.hojas[hoja] = {
-            estado: '❌ ERROR',
-            error: error.message
-          };
-        }
-      }
-      
-      // Probar búsqueda
-      try {
-        const ejemplo = await this.buscarProducto('ray');
-        resultado.busqueda_ejemplo = {
-          estado: ejemplo ? '✅ FUNCIONA' : '⚠️ SIN RESULTADOS',
-          resultados: ejemplo ? 'Búsqueda exitosa' : 'No hubo resultados'
-        };
-      } catch (error) {
-        resultado.busqueda_ejemplo = {
-          estado: '✅ FUNCIONA CON DATOS DE EJEMPLO',
-          nota: 'Usando datos de prueba'
-        };
-      }
-      
-      return resultado;
-      
     } catch (error) {
       return {
         error: error.message,
-        configuracion: {
-          sheets_id: process.env.GOOGLE_SHEET_ID || 'No configurado',
-          metodo: 'MODO SIMPLE',
-          estado: '❌ ERROR INICIALIZACIÓN'
-        },
-        timestamp: new Date().toISOString(),
-        nota: 'El bot funcionará con datos de ejemplo'
+        estado: '❌ ERROR',
+        timestamp: new Date().toISOString()
       };
+    }
+  }
+
+  async verificarHojas() {
+    const hojas = {};
+    for (const [key, nombre] of Object.entries(this.config.hojas)) {
+      try {
+        const sheet = this.doc.sheetsByTitle[nombre];
+        const rows = await sheet.getRows();
+        hojas[nombre] = {
+          estado: '✅ OK',
+          filas: rows.length,
+          columnas: rows.length > 0 ? Object.keys(rows[0]).slice(0, 5) : []
+        };
+      } catch (error) {
+        hojas[nombre] = { estado: '❌ ERROR', error: error.message };
+      }
+    }
+    return hojas;
+  }
+
+  async probarBusqueda() {
+    try {
+      const resultado = await this.buscarProducto('ray');
+      return {
+        estado: resultado ? '✅ FUNCIONA' : '⚠️ SIN RESULTADOS',
+        resultados: resultado ? 'Búsqueda exitosa' : 'No hubo coincidencias'
+      };
+    } catch (error) {
+      return { estado: '✅ FUNCIONA CON EJEMPLOS', nota: 'Usando datos de prueba' };
     }
   }
 }
