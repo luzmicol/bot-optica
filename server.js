@@ -238,12 +238,28 @@ class ResponseHandler {
       
       default:
         // Si no entendió pero estamos en medio de una conversación
-        if (contexto.ultimoTema) {
-          return this.continuarConversacion(contexto.ultimoTema, mensajeLower, contexto);
-        }
-        return this.respuestaNoEntendido();
-    }
+        async generarRespuesta(mensaje, contexto = { paso: 0, ultimoTema: null, conversacion: [] }) {
+  const intent = this.recognizer.detectIntent(mensaje);
+  const mensajeLower = mensaje.toLowerCase();
+  
+  // 🎯 GUARDAR HISTORIAL DE CONVERSACIÓN
+  contexto.conversacion.push({ mensaje, intent, timestamp: Date.now() });
+  
+  // 🎯 SI NO ENTENDIÓ PERO HAY CONTEXTO, SEGUIR LA CONVERSACIÓN
+  if (intent === 'no_entendido' && contexto.ultimoTema) {
+    return this.continuarConversacionNatural(contexto.ultimoTema, mensajeLower, contexto);
   }
+  
+  // 🎯 RESET si pasó mucho tiempo o es nuevo saludo
+  if (intent === 'saludo' && contexto.ultimoTema && Date.now() - contexto.conversacion[contexto.conversacion.length - 2]?.timestamp > 300000) {
+    contexto.ultimoTema = null;
+    contexto.conversacion = [];
+  }
+  
+  contexto.ultimoTema = intent;
+  
+  // ... el resto del switch igual ...
+}
 
   respuestaSaludo(contexto) {
     contexto.paso = 1;
