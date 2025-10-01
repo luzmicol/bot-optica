@@ -361,9 +361,59 @@ respuestaLiquidos(mensaje, contexto) {
   
   return "🧴 Tenemos líquidos de varias marcas. ¿Usás alguna marca específica o te recomiendo?";
 }
-  continuarConversacion(ultimoTema, mensaje, contexto) {
-  const mensajeLower = mensaje.toLowerCase().trim();
-  
+ continuarConversacionNatural(ultimoTema, mensaje, contexto) {
+  // 🎯 CONVERSACIÓN NATURAL - sin detección estricta
+  switch (ultimoTema) {
+    case 'lentes_contacto':
+      // Cualquier respuesta relacionada con primera vez
+      if (mensaje.includes('primera') || mensaje.includes('nunca') || mensaje.includes('nuevo') || 
+          mensaje.includes('empezar') || mensaje.includes('iniciar')) {
+        return "🎯 ¡Perfecto para empezar! Te recomiendo una consulta para ver qué te conviene más. ¿Tenés receta oftalmológica actual?";
+      }
+      
+      // Cualquier respuesta relacionada con experiencia
+      if (mensaje.includes('uso') || mensaje.includes('experiencia') || mensaje.includes('actual') || 
+          mensaje.includes('habitual') || mensaje.includes('ya')) {
+        return "¡Bien! ¿Qué marca usás actualmente? Así vemos si tenemos.";
+      }
+      
+      // Si no entendió pero estamos en tema lentes de contacto
+      return "¿Te interesa probar alguna marca o necesitás más información sobre lentes de contacto?";
+    
+    case 'liquidos':
+      // Cualquier respuesta relacionada con recomendación
+      if (mensaje.includes('recomenda') || mensaje.includes('suger') || mensaje.includes('consejo')) {
+        return "🧴 Te recomiendo Renu para sensibilidad o Opti-Free para uso diario. ¿Qué tipo de lente usás?";
+      }
+      
+      // Cualquier mención a marcas
+      if (mensaje.includes('renu') || mensaje.includes('opti') || mensaje.includes('biotrue')) {
+        return `✅ Tenemos ${mensaje.includes('renu') ? 'Renu' : mensaje.includes('opti') ? 'Opti-Free' : 'BioTrue'}. ¿Te interesa?`;
+      }
+      
+      return "¿Qué marca de líquido te interesa o querés una recomendación?";
+    
+    case 'obra_social':
+      // Cualquier mención a obras sociales específicas
+      if (mensaje.includes('medicus') || mensaje.includes('swiss') || mensaje.includes('osetya') || mensaje.includes('construir')) {
+        return `✅ Sí, trabajamos con ${mensaje.includes('medicus') ? 'Medicus' : mensaje.includes('swiss') ? 'Swiss Medical' : mensaje.includes('osetya') ? 'Osetya' : 'Construir Salud'}. ¿Tenés la receta?`;
+      }
+      
+      return "¿Tenés alguna obra social en mente o te cuento los requisitos?";
+    
+    default:
+      // 🎯 RESPUESTA INTELIGENTE POR DEFECTO
+      if (mensaje.length < 3) {
+        return "¿Decís? No te entendí bien 😅";
+      }
+      
+      if (mensaje.includes('?') || mensaje.includes('que') || mensaje.includes('qué')) {
+        return "🤔 No estoy segura de entender tu pregunta. ¿Podés reformularla?";
+      }
+      
+      return "¿Necesitás que te ayude con algo más específico?";
+  }
+}
   // ==================== RESPUESTAS SIMPLES UNIVERSALES ====================
   if (this.esRespuestaSimpleSi(mensajeLower)) {
     switch (ultimoTema) {
