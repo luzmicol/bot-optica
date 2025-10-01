@@ -358,7 +358,27 @@ class ResponseHandler {
     
     return this.respuestaNoEntendido();
   }
-
+respuestaLiquidos(mensaje, contexto) {
+  if (mensaje.includes('marca') || mensaje.includes('acuvue') || mensaje.includes('biofinity')) {
+    return "👁️ Tenemos Acuvue, Biofinity y Air Optix. ¿Probaste alguna?";
+  }
+  
+  // 🎯 NUEVO: Detectar recomendaciones
+  if (mensaje.includes('recomenda') || mensaje.includes('sugerí') || mensaje.includes('sugiere')) {
+    return "🧴 Te recomiendo Renu o Opti-Free, son los más populares. ¿Para qué tipo de lente?";
+  }
+  
+  if (mensaje.includes('tamaño') || mensaje.includes('ml') || mensaje.includes('grande')) {
+    return "📏 Tenemos de 300ml y 360ml. El de 360ml rinde más si usás lentes a diario.";
+  }
+  
+  // Si ya estaban hablando de líquidos y preguntan qué tienen
+  if (contexto.ultimoTema === 'liquidos' && (mensaje.includes('que') || mensaje.includes('qué'))) {
+    return "🧴 Tenemos Renu, Opti-Free, BioTrue y más marcas. ¿Alguna te interesa?";
+  }
+  
+  return "🧴 Tenemos líquidos de varias marcas. ¿Usás alguna marca específica o te recomiendo?";
+}
   continuarConversacion(ultimoTema, mensaje, contexto) {
     switch (ultimoTema) {
       case 'obra_social':
