@@ -78,7 +78,7 @@ class GoogleSheetsService {
   }
 }
 
-// Método específico para Armazones - VERSIÓN CORREGIDA
+// Método específico para Armazones - VERSIÓN CON MAPEO EXACTO
 async _procesarArmazones(sheet) {
   try {
     await sheet.loadHeaderRow(3);
@@ -87,15 +87,14 @@ async _procesarArmazones(sheet) {
     
     const productos = rows.map((row, index) => {
       try {
-        // MAPEO CORREGIDO basado en tu estructura real
-        const codigo = row['COD. HYPNO'] || '';
-        const marca = row['Marca'] || '';
-        const modelo = row['Modelo'] || '';
-        const color = row['Color'] || '';
-        const cantidad = row['Cantidad'] || '0';
-        const precio = row['PRECIO'] || '';
-        const descripcion = row['Descripciones'] || '';
-        const sol_receta = row['Sol/Receta'] || '';
+        // 🎯 MAPEO EXACTO SEGÚN TUS COLUMNAS
+        const marca = row['C'] || '';        // Columna C - Marca
+        const sol_receta = row['E'] || '';   // Columna E - Sol/Receta  
+        const codigo = row['F'] || '';       // Columna F - COD.HYPNO
+        const modelo = row['G'] || '';       // Columna G - Modelo
+        const cantidad = row['I'] || '0';    // Columna I - Cantidad
+        const precio = row['P'] || '';       // Columna P - PRECIO
+        const descripcion = row['T'] || '';  // Columna T - Descripciones
         
         // Convertir cantidad a número
         let stock = 0;
@@ -104,17 +103,16 @@ async _procesarArmazones(sheet) {
           stock = isNaN(numero) ? 0 : numero;
         }
         
-        // ✅ CAMBIO IMPORTANTE: Mostrar aunque no tenga código
+        // ✅ Mostrar productos con marca O modelo (aunque no tengan código)
         if (marca.trim() || modelo.trim()) {
           return {
             codigo: codigo.trim(),
             marca: marca.trim(),
             modelo: modelo.trim(),
-            color: color.trim(),
+            sol_receta: sol_receta.trim(),
             cantidad: stock,
             precio: precio.toString().trim(),
             descripcion: descripcion.trim(),
-            sol_receta: sol_receta.trim(),
             categoria: 'Armazones',
             fila: index + 4
           };
@@ -144,7 +142,7 @@ async _procesarArmazones(sheet) {
   }
 }
 
-// Método específico para Lentes de Contacto (solo marcas)
+// Método específico para Lentes de Contacto - VERSIÓN SIMPLIFICADA
 async _procesarLC(sheet) {
   try {
     const rows = await sheet.getRows();
@@ -152,38 +150,34 @@ async _procesarLC(sheet) {
     
     const marcas = new Set();
     
-    // Leer marcas de columnas B, C, D a partir de fila 2
-    rows.forEach((row, index) => {
-      if (index >= 1) { // A partir de fila 2 (index 1)
-        const marcaB = row['B'] || '';
-        const marcaC = row['C'] || '';
-        const marcaD = row['D'] || '';
-        
-        [marcaB, marcaC, marcaD].forEach(marca => {
-          if (marca.trim() && !marca.toLowerCase().includes('lentes') && !marca.toLowerCase().includes('contacto')) {
-            marcas.add(marca.trim());
-          }
-        });
-      }
-    });
+    // 🎯 Leer marcas de columnas B, C, D desde fila 2
+    if (rows.length > 0) {
+      const filaMarcas = rows[0]; // Fila 2 (B2, C2, D2)
+      const marcaB = filaMarcas['B'] || '';
+      const marcaC = filaMarcas['C'] || ''; 
+      const marcaD = filaMarcas['D'] || '';
+      
+      [marcaB, marcaC, marcaD].forEach(marca => {
+        if (marca.trim()) {
+          marcas.add(marca.trim());
+        }
+      });
+    }
     
     const marcasArray = Array.from(marcas).sort();
-    console.log(`👁️  Marcas de LC detectadas: ${marcasArray.join(', ')}`);
+    console.log(`👁️ Marcas de LC: ${marcasArray.join(', ')}`);
     
-    // Convertir marcas a formato de productos para consistencia
+    // Convertir a formato de productos
     const productos = marcasArray.map((marca, index) => ({
       codigo: `LC-${index + 1}`,
       marca: marca,
       modelo: 'Lentes de Contacto',
-      color: 'Consultar',
-      cantidad: 1, // Asumir que hay stock
+      cantidad: 1,
       precio: 'Consultar',
       descripcion: `Lentes de contacto ${marca}`,
-      categoria: 'Lentes de Contacto',
-      fila: index + 2
+      categoria: 'Lentes de Contacto'
     }));
     
-    console.log(`✅ ${productos.length} marcas de LC procesadas`);
     return productos;
     
   } catch (error) {
@@ -192,35 +186,47 @@ async _procesarLC(sheet) {
   }
 }
 
-// Método específico para Accesorios
-async _procesarAccesorios(sheet) {
+// Método específico para Líquidos - VERSIÓN SIMPLIFICADA  
+async _procesarLiquidos(sheet) {
   try {
     const rows = await sheet.getRows();
-    console.log(`📊 ${rows.length} filas encontradas en Accesorios`);
+    console.log(`📊 ${rows.length} filas encontradas en Líquidos`);
     
     const productos = [];
     
-    // Leer marcas desde A2 para abajo y precios desde I2 para abajo
-    rows.forEach((row, index) => {
-      if (index >= 1) { // A partir de fila 2 (index 1)
-        const marca = row['A'] || '';
-        const precio = row['I'] || '';
-        
-        if (marca.trim()) {
-          productos.push({
-            codigo: `ACC-${index + 1}`,
-            marca: marca.trim(),
-            modelo: 'Accesorio',
-            color: 'Consultar',
-            cantidad: 1, // Asumir stock
-            precio: precio.toString().trim() || 'Consultar',
-            descripcion: `Accesorio ${marca.trim()}`,
-            categoria: 'Accesorios',
-            fila: index + 2
-          });
-        }
+    // 🎯 Leer desde fila 2 (B2, C2)
+    if (rows.length > 0) {
+      const filaLiquidos = rows[0];
+      const marca = filaLiquidos['B'] || '';
+      const tamano = filaLiquidos['C'] || '';
+      
+      if (marca.trim()) {
+        productos.push({
+          codigo: `LIQ-1`,
+          marca: marca.trim(),
+          modelo: 'Líquido para lentes',
+          cantidad: 1,
+          precio: 'Consultar',
+          descripcion: `Líquido ${marca.trim()} ${tamano.trim()}`,
+          tamano: tamano.trim(),
+          categoria: 'Líquidos'
+        });
       }
-    });
+    }
+    
+    console.log(`🧴 Líquidos: ${productos.length} productos`);
+    return productos;
+    
+  } catch (error) {
+    console.error('❌ Error procesando Líquidos:', error.message);
+    return [];
+  }
+}
+
+async _procesarAccesorios(sheet) {
+  console.log('ℹ️  Stock Accesorios desactivado temporalmente');
+  return []; // Array vacío
+}
     
     console.log(`✅ ${productos.length} accesorios procesados`);
     return productos;
