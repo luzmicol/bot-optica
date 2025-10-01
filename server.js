@@ -1,12 +1,16 @@
 const express = require('express');
+
+// 🟢 CORREGIR IMPORTACIONES - USAR RUTAS CORRECTAS
 const { config } = require('./src/config/environment');
-const googleSheetsService = require('./src/services/googleSheetsService');
+const GoogleSheetsService = require('./src/services/googleSheetsService');
 const memoryService = require('./src/services/memoryService');
+
+// 🟢 INSTANCIAR EL SERVICIO CORRECTAMENTE
+const googleSheetsService = new GoogleSheetsService();
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-
 // ==================== FUNCIONES PRINCIPALES ====================
 async function buscarPorDescripcion(descripcion) {
   try {
