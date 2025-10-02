@@ -409,6 +409,41 @@ class ResponseHandler {
   }
 }
 
+// ==================== SERVICIO DE MEMORIA PARA CONVERSACIONES ====================
+class MemoryService {
+  constructor() {
+    this.contextos = new Map();
+  }
+
+  obtenerContextoUsuario(userId) {
+    if (!this.contextos.has(userId)) {
+      this.contextos.set(userId, { 
+        paso: 0, 
+        ultimoTema: null, 
+        conversacion: [],
+        timestamp: Date.now()
+      });
+    }
+    return this.contextos.get(userId);
+  }
+
+  guardarContextoUsuario(userId, contexto) {
+    contexto.timestamp = Date.now(); // Actualizar timestamp
+    this.contextos.set(userId, contexto);
+    
+    // 🧹 Limpiar contextos viejos (más de 1 hora)
+    this.limpiarContextosViejos();
+  }
+
+  limpiarContextosViejos() {
+    const ahora = Date.now();
+    for (const [userId, contexto] of this.contextos.entries()) {
+      if (ahora - contexto.timestamp > 3600000) { // 1 hora
+        this.contextos.delete(userId);
+      }
+    }
+  }
+}
 // ==================== CONFIGURACIÓN EXPRESS ====================
 const memoryService = new MemoryService();
 const responseHandler = new ResponseHandler();
