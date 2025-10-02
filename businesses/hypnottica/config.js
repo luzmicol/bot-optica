@@ -17,7 +17,6 @@ module.exports = {
     address: "Serrano 684, Villa Crespo, CABA",
     phone: "1132774631",
     hours: "Lunes a Sábado de 10:30 a 19:30",
-    email: "consultas@hypnottica.com"
   },
   
   // Configuración de datos
