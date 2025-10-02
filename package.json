@@ -1,49 +1,24 @@
 {
-  "name": "hypnottica-bot",
-  "version": "3.1.0",
-  "description": "Bot de WhatsApp para Hypnottica Óptica - Asistente virtual inteligente con IA y Google Sheets",
+  "name": "hypnottica-framework",
+  "version": "1.0.0",
+  "description": "Framework de bots conversacionales empresariales",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "echo 'Build completado'",
-    "test": "echo 'No hay tests configurados'"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [
-    "whatsapp",
-    "bot",
-    "optica",
-    "hypnottica",
-    "assistant",
-    "google-sheets",
-    "redis",
-    "openai",
-    "ia",
-    "twilio"
-  ],
-  "author": "Hypnottica Óptica",
-  "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
-    "twilio": "^4.23.0",
-    "google-spreadsheet": "^4.1.1",
-    "google-auth-library": "^9.0.0",
-    "redis": "^4.6.13",
-    "node-fetch": "^2.7.0"
+    "google-spreadsheet": "^4.1.0",
+    "dotenv": "^16.3.0",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.0"
   },
-  "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/luzmicol/bot-optica.git"
-  },
-  "bugs": {
-    "url": "https://github.com/luzmicol/bot-optica/issues"
-  },
-  "homepage": "https://github.com/luzmicol/bot-optica#readme"
+  "keywords": ["bot", "framework", "business", "conversational-ai"],
+  "author": "Tu equipo",
+  "license": "MIT"
 }
