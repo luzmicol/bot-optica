@@ -186,49 +186,60 @@ class IntentRecognizer {
     return palabrasDespedida.some(palabra => mensaje.includes(palabra));
   }
 }
-// ==================== MANEJADOR DE RESPUESTAS MEJORADO ====================
+// ==================== MANEJADOR DE RESPUESTAS COMPLETO Y ORDENADO ====================
 class ResponseHandler {
   constructor() {
     this.recognizer = new IntentRecognizer();
   }
 
-  async generarRespuesta(mensaje, contexto = { paso: 0, ultimoTema: null }) {
+  async generarRespuesta(mensaje, contexto = { paso: 0, ultimoTema: null, conversacion: [] }) {
     const intent = this.recognizer.detectIntent(mensaje);
     const mensajeLower = mensaje.toLowerCase();
     
-    // 🎯 RESPUESTAS MÁS CORTAS Y NATURALES
+    // 🎯 GUARDAR HISTORIAL DE CONVERSACIÓN
+    contexto.conversacion.push({ mensaje, intent, timestamp: Date.now() });
+    
+    // 🎯 SI NO ENTENDIÓ PERO HAY CONTEXTO, SEGUIR LA CONVERSACIÓN
+    if (intent === 'no_entendido' && contexto.ultimoTema) {
+      return this.continuarConversacionNatural(contexto.ultimoTema, mensajeLower, contexto);
+    }
+    
+    // 🎯 RESET si pasó mucho tiempo o es nuevo saludo
+    if (intent === 'saludo' && contexto.ultimoTema && contexto.conversacion.length > 1) {
+      const ultimoMensaje = contexto.conversacion[contexto.conversacion.length - 2];
+      if (Date.now() - ultimoMensaje.timestamp > 300000) {
+        contexto.ultimoTema = null;
+        contexto.conversacion = [];
+      }
+    }
+    
+    contexto.ultimoTema = intent;
+    
+    // 🎯 RESPUESTAS PRINCIPALES
     switch (intent) {
       case 'saludo':
-        contexto.ultimoTema = 'saludo';
         return this.respuestaSaludo(contexto);
       
       case 'obra_social':
-        contexto.ultimoTema = 'obra_social';
         return this.respuestaObraSocial(mensajeLower, contexto);
       
       case 'precio':
-        contexto.ultimoTema = 'precio';
         return this.respuestaPrecios(mensajeLower, contexto);
       
       case 'marca':
-        contexto.ultimoTema = 'marca';
         return this.respuestaMarcas(mensajeLower, contexto);
       
       case 'horario':
-        contexto.ultimoTema = 'horario';
         return "⏰ Abrimos de lunes a sábado de 10:30 a 19:30. ¿Te sirve algún día en particular?";
       
       case 'direccion':
-        contexto.ultimoTema = 'direccion';
         return "📍 Estamos en Serrano 684, Villa Crespo. ¿Necesitás indicaciones o el barrio?";
       
       case 'lentes_contacto':
-        contexto.ultimoTema = 'lentes_contacto';
         return this.respuestaLentesContacto(mensajeLower, contexto);
       
       case 'liquidos':
-        contexto.ultimoTema = 'liquidos';
-        return "🧴 Tenemos líquidos de varias marcas. ¿Usás alguna marca específica o te recomiendo?";
+        return this.respuestaLiquidos(mensajeLower, contexto);
       
       case 'consulta_frecuente':
         return this.respuestaConsultaFrecuente(mensajeLower, contexto);
@@ -237,29 +248,9 @@ class ResponseHandler {
         return "👋 ¡Chau! Cualquier cosa escribime 😊";
       
       default:
-        // Si no entendió pero estamos en medio de una conversación
-        async generarRespuesta(mensaje, contexto = { paso: 0, ultimoTema: null, conversacion: [] }) {
-  const intent = this.recognizer.detectIntent(mensaje);
-  const mensajeLower = mensaje.toLowerCase();
-  
-  // 🎯 GUARDAR HISTORIAL DE CONVERSACIÓN
-  contexto.conversacion.push({ mensaje, intent, timestamp: Date.now() });
-  
-  // 🎯 SI NO ENTENDIÓ PERO HAY CONTEXTO, SEGUIR LA CONVERSACIÓN
-  if (intent === 'no_entendido' && contexto.ultimoTema) {
-    return this.continuarConversacionNatural(contexto.ultimoTema, mensajeLower, contexto);
+        return this.respuestaNoEntendido();
+    }
   }
-  
-  // 🎯 RESET si pasó mucho tiempo o es nuevo saludo
-  if (intent === 'saludo' && contexto.ultimoTema && Date.now() - contexto.conversacion[contexto.conversacion.length - 2]?.timestamp > 300000) {
-    contexto.ultimoTema = null;
-    contexto.conversacion = [];
-  }
-  
-  contexto.ultimoTema = intent;
-  
-  // ... el resto del switch igual ...
-}
 
   respuestaSaludo(contexto) {
     contexto.paso = 1;
@@ -322,6 +313,26 @@ class ResponseHandler {
     return "👁️ ¡Sí! Trabajamos con lentes de contacto. ¿Es tu primera vez o ya usás?";
   }
 
+  respuestaLiquidos(mensaje, contexto) {
+    if (mensaje.includes('marca') || mensaje.includes('acuvue') || mensaje.includes('biofinity')) {
+      return "👁️ Tenemos Acuvue, Biofinity y Air Optix. ¿Probaste alguna?";
+    }
+    
+    if (mensaje.includes('recomenda') || mensaje.includes('sugerí') || mensaje.includes('sugiere')) {
+      return "🧴 Te recomiendo Renu o Opti-Free, son los más populares. ¿Para qué tipo de lente?";
+    }
+    
+    if (mensaje.includes('tamaño') || mensaje.includes('ml') || mensaje.includes('grande')) {
+      return "📏 Tenemos de 300ml y 360ml. El de 360ml rinde más si usás lentes a diario.";
+    }
+    
+    if (contexto.ultimoTema === 'liquidos' && (mensaje.includes('que') || mensaje.includes('qué'))) {
+      return "🧴 Tenemos Renu, Opti-Free, BioTrue y más marcas. ¿Alguna te interesa?";
+    }
+    
+    return "🧴 Tenemos líquidos de varias marcas. ¿Usás alguna marca específica o te recomiendo?";
+  }
+
   respuestaConsultaFrecuente(mensaje, contexto) {
     if (mensaje.includes('envio') || mensaje.includes('domicilio')) {
       return "🚚 Hacemos envíos, pero recomendamos retirar acá para probártelos bien.";
@@ -340,376 +351,61 @@ class ResponseHandler {
     
     return this.respuestaNoEntendido();
   }
-respuestaLiquidos(mensaje, contexto) {
-  if (mensaje.includes('marca') || mensaje.includes('acuvue') || mensaje.includes('biofinity')) {
-    return "👁️ Tenemos Acuvue, Biofinity y Air Optix. ¿Probaste alguna?";
-  }
-  
-  // 🎯 NUEVO: Detectar recomendaciones
-  if (mensaje.includes('recomenda') || mensaje.includes('sugerí') || mensaje.includes('sugiere')) {
-    return "🧴 Te recomiendo Renu o Opti-Free, son los más populares. ¿Para qué tipo de lente?";
-  }
-  
-  if (mensaje.includes('tamaño') || mensaje.includes('ml') || mensaje.includes('grande')) {
-    return "📏 Tenemos de 300ml y 360ml. El de 360ml rinde más si usás lentes a diario.";
-  }
-  
-  // Si ya estaban hablando de líquidos y preguntan qué tienen
-  if (contexto.ultimoTema === 'liquidos' && (mensaje.includes('que') || mensaje.includes('qué'))) {
-    return "🧴 Tenemos Renu, Opti-Free, BioTrue y más marcas. ¿Alguna te interesa?";
-  }
-  
-  return "🧴 Tenemos líquidos de varias marcas. ¿Usás alguna marca específica o te recomiendo?";
-}
- continuarConversacionNatural(ultimoTema, mensaje, contexto) {
-  // 🎯 CONVERSACIÓN NATURAL - sin detección estricta
-  switch (ultimoTema) {
-    case 'lentes_contacto':
-      // Cualquier respuesta relacionada con primera vez
-      if (mensaje.includes('primera') || mensaje.includes('nunca') || mensaje.includes('nuevo') || 
-          mensaje.includes('empezar') || mensaje.includes('iniciar')) {
-        return "🎯 ¡Perfecto para empezar! Te recomiendo una consulta para ver qué te conviene más. ¿Tenés receta oftalmológica actual?";
-      }
-      
-      // Cualquier respuesta relacionada con experiencia
-      if (mensaje.includes('uso') || mensaje.includes('experiencia') || mensaje.includes('actual') || 
-          mensaje.includes('habitual') || mensaje.includes('ya')) {
-        return "¡Bien! ¿Qué marca usás actualmente? Así vemos si tenemos.";
-      }
-      
-      // Si no entendió pero estamos en tema lentes de contacto
-      return "¿Te interesa probar alguna marca o necesitás más información sobre lentes de contacto?";
-    
-    case 'liquidos':
-      // Cualquier respuesta relacionada con recomendación
-      if (mensaje.includes('recomenda') || mensaje.includes('suger') || mensaje.includes('consejo')) {
-        return "🧴 Te recomiendo Renu para sensibilidad o Opti-Free para uso diario. ¿Qué tipo de lente usás?";
-      }
-      
-      // Cualquier mención a marcas
-      if (mensaje.includes('renu') || mensaje.includes('opti') || mensaje.includes('biotrue')) {
-        return `✅ Tenemos ${mensaje.includes('renu') ? 'Renu' : mensaje.includes('opti') ? 'Opti-Free' : 'BioTrue'}. ¿Te interesa?`;
-      }
-      
-      return "¿Qué marca de líquido te interesa o querés una recomendación?";
-    
-    case 'obra_social':
-      // Cualquier mención a obras sociales específicas
-      if (mensaje.includes('medicus') || mensaje.includes('swiss') || mensaje.includes('osetya') || mensaje.includes('construir')) {
-        return `✅ Sí, trabajamos con ${mensaje.includes('medicus') ? 'Medicus' : mensaje.includes('swiss') ? 'Swiss Medical' : mensaje.includes('osetya') ? 'Osetya' : 'Construir Salud'}. ¿Tenés la receta?`;
-      }
-      
-      return "¿Tenés alguna obra social en mente o te cuento los requisitos?";
-    
-    default:
-      // 🎯 RESPUESTA INTELIGENTE POR DEFECTO
-      if (mensaje.length < 3) {
-        return "¿Decís? No te entendí bien 😅";
-      }
-      
-      if (mensaje.includes('?') || mensaje.includes('que') || mensaje.includes('qué')) {
-        return "🤔 No estoy segura de entender tu pregunta. ¿Podés reformularla?";
-      }
-      
-      return "¿Necesitás que te ayude con algo más específico?";
-  }
-}
-  // ==================== RESPUESTAS SIMPLES UNIVERSALES ====================
-  if (this.esRespuestaSimpleSi(mensajeLower)) {
+
+  continuarConversacionNatural(ultimoTema, mensaje, contexto) {
+    // 🎯 CONVERSACIÓN NATURAL - sin detección estricta
     switch (ultimoTema) {
       case 'lentes_contacto':
-        return "¡Bien! ¿Qué marca usás actualmente?";
-      case 'obra_social':
-        return "Perfecto 😊 ¿Tenés la receta? La vigencia es de 60 días.";
+        if (mensaje.includes('primera') || mensaje.includes('nunca') || mensaje.includes('nuevo') || 
+            mensaje.includes('empezar') || mensaje.includes('iniciar')) {
+          return "🎯 ¡Perfecto para empezar! Te recomiendo una consulta para ver qué te conviene más. ¿Tenés receta oftalmológica actual?";
+        }
+        
+        if (mensaje.includes('uso') || mensaje.includes('experiencia') || mensaje.includes('actual') || 
+            mensaje.includes('habitual') || mensaje.includes('ya')) {
+          return "¡Bien! ¿Qué marca usás actualmente? Así vemos si tenemos.";
+        }
+        
+        return "¿Te interesa probar alguna marca o necesitás más información sobre lentes de contacto?";
+      
       case 'liquidos':
-        return "¿Qué marca de líquido usás?";
-      case 'marca':
-        return "¿Te interesa algún modelo en particular?";
-      case 'precio':
-        return "¿De qué producto querés saber el precio exacto?";
+        if (mensaje.includes('recomenda') || mensaje.includes('suger') || mensaje.includes('consejo')) {
+          return "🧴 Te recomiendo Renu para sensibilidad o Opti-Free para uso diario. ¿Qué tipo de lente usás?";
+        }
+        
+        if (mensaje.includes('renu') || mensaje.includes('opti') || mensaje.includes('biotrue')) {
+          return `✅ Tenemos ${mensaje.includes('renu') ? 'Renu' : mensaje.includes('opti') ? 'Opti-Free' : 'BioTrue'}. ¿Te interesa?`;
+        }
+        
+        return "¿Qué marca de líquido te interesa o querés una recomendación?";
+      
+      case 'obra_social':
+        if (mensaje.includes('medicus') || mensaje.includes('swiss') || mensaje.includes('osetya') || mensaje.includes('construir')) {
+          return `✅ Sí, trabajamos con ${mensaje.includes('medicus') ? 'Medicus' : mensaje.includes('swiss') ? 'Swiss Medical' : mensaje.includes('osetya') ? 'Osetya' : 'Construir Salud'}. ¿Tenés la receta?`;
+        }
+        
+        return "¿Tenés alguna obra social en mente o te cuento los requisitos?";
+      
       default:
-        return "¿En qué más te puedo ayudar?";
+        if (mensaje.length < 3) {
+          return "¿Decís? No te entendí bien 😅";
+        }
+        
+        if (mensaje.includes('?') || mensaje.includes('que') || mensaje.includes('qué')) {
+          return "🤔 No estoy segura de entender tu pregunta. ¿Podés reformularla?";
+        }
+        
+        return "¿Necesitás que te ayude con algo más específico?";
     }
   }
-  
-  if (this.esRespuestaSimpleNo(mensajeLower)) {
-    switch (ultimoTema) {
-      case 'lentes_contacto':
-        return "¡Genial! Te recomiendo empezar con una consulta. ¿Tenés receta oftalmológica?";
-      case 'obra_social':
-        return "¿Te interesa saber sobre precios particulares?";
-      case 'liquidos':
-        return "¿Querés que te recomiende alguna marca?";
-      case 'marca':
-        return "¿Te ayudo a encontrar alguna marca que te guste?";
-      default:
-        return "¿Te ayudo con algo más?";
-    }
-  }
-
-  // ==================== RESPUESTAS ESPECÍFICAS POR TEMA ====================
-  switch (ultimoTema) {
-    case 'lentes_contacto':
-      return this.manejarRespuestaLentesContacto(mensajeLower, contexto);
-    
-    case 'liquidos':
-      return this.manejarRespuestaLiquidos(mensajeLower, contexto);
-    
-    case 'obra_social':
-      return this.manejarRespuestaObraSocial(mensajeLower, contexto);
-    
-    case 'marca':
-      return this.manejarRespuestaMarca(mensajeLower, contexto);
-    
-    case 'precio':
-      return this.manejarRespuestaPrecio(mensajeLower, contexto);
-    
-    case 'horario':
-      return this.manejarRespuestaHorario(mensajeLower, contexto);
-    
-    case 'direccion':
-      return this.manejarRespuestaDireccion(mensajeLower, contexto);
-    
-    default:
-      return "¿Necesitás que te ayude con algo más?";
-  }
-}
-
-// ==================== MANEJADORES ESPECÍFICOS COMPLETOS ====================
-
-manejarRespuestaLentesContacto(mensaje, contexto) {
-  // PRIMERA VEZ / EXPERIENCIA
-  if (this.contieneAlguna(mensaje, ['primera vez', 'nunca use', 'nunca usé', 'empezar', 'iniciar', 'comenzar', 'nuevo'])) {
-    return "🎯 Perfecto para primera vez! Te recomiendo una consulta. ¿Tenés receta oftalmológica actual?";
-  }
-  
-  if (this.contieneAlguna(mensaje, ['ya uso', 'uso actual', 'actualmente', 'habitual', 'experiencia', 'experimentado'])) {
-    return "¡Bien! ¿Qué marca usás actualmente?";
-  }
-
-  // MARCAS DE LENTES DE CONTACTO
-  if (this.contieneAlguna(mensaje, ['acuvue', 'acuvue'])) {
-    return "✅ Tenemos Acuvue. ¿Buscás los diarios, quincenales o mensuales?";
-  }
-  if (this.contieneAlguna(mensaje, ['biofinity', 'biofinity'])) {
-    return "✅ Tenemos Biofinity. Son mensuales, muy cómodos. ¿Te interesan?";
-  }
-  if (this.contieneAlguna(mensaje, ['air optix', 'air optix'])) {
-    return "✅ Tenemos Air Optix. ¿Para miopía, astigmatismo o presbicia?";
-  }
-
-  // TIPOS DE LENTES
-  if (this.contieneAlguna(mensaje, ['diario', 'diarios', 'desechable', 'desechables'])) {
-    return "📅 Los diarios son los más prácticos. No necesitan mantenimiento. ¿Para qué uso los querés?";
-  }
-  if (this.contieneAlguna(mensaje, ['mensual', 'mensuales', 'mensuales'])) {
-    return "📅 Los mensuales son más económicos a largo plazo. ¿Ya usaste este tipo?";
-  }
-  if (this.contieneAlguna(mensaje, ['anual', 'anuales'])) {
-    return "📅 Los anuales casi no se usan hoy. Te recomiendo mensuales que son más seguros. ¿Te sirve?";
-  }
-
-  // PROBLEMAS ESPECÍFICOS
-  if (this.contieneAlguna(mensaje, ['miopia', 'miopía', 'corto vista'])) {
-    return "👁️ Para miopía tenemos varias opciones. ¿Tenés el valor de la receta?";
-  }
-  if (this.contieneAlguna(mensaje, ['astigmatismo', 'astigmatismo'])) {
-    return "👁️ Para astigmatismo también hay lentes especiales. ¿Sabés tu medida?";
-  }
-  if (this.contieneAlguna(mensaje, ['ojo seco', 'sequedad', 'secos'])) {
-    return "💧 Para ojos secos recomiendo los diarios o marcas específicas. ¿Sufrís de sequedad?";
-  }
-
-  // CONSULTA MÉDICA
-  if (this.contieneAlguna(mensaje, ['receta', 'oftalmólogo', 'oftalmologo', 'médico', 'medico'])) {
-    return "📄 Si tenés receta, traela. La vigencia es de 6 meses para lentes de contacto. ¿La tenés?";
-  }
-
-  // PRECIOS
-  if (this.contieneAlguna(mensaje, ['precio', 'cuesta', 'valor', 'cuanto'])) {
-    return "💲 Los precios varían según marca y tipo. ¿Te interesa alguna en particular?";
-  }
-
-  return "¿Te interesa probar alguna marca o necesitás más información?";
-}
-
-manejarRespuestaLiquidos(mensaje, contexto) {
-  // RECOMENDACIONES
-  if (this.contieneAlguna(mensaje, ['recomenda', 'sugerí', 'sugiere', 'recomiendas', 'recomendación'])) {
-    return "🧴 Te recomiendo Renu para sensibilidad o Opti-Free para uso diario. ¿Qué tipo de lente usás?";
-  }
-
-  // MARCAS ESPECÍFICAS
-  if (this.contieneAlguna(mensaje, ['renu', 'renu'])) {
-    return "✅ Tenemos Renu. ¿El de 300ml o 360ml?";
-  }
-  if (this.contieneAlguna(mensaje, ['opti-free', 'optifree'])) {
-    return "✅ Tenemos Opti-Free. ¿Express o Puremoist?";
-  }
-  if (this.contieneAlguna(mensaje, ['biotrue', 'bio true'])) {
-    return "✅ Tenemos BioTrue. Es muy suave con los ojos sensibles. ¿Te interesa?";
-  }
-
-  // TAMAÑOS
-  if (this.contieneAlguna(mensaje, ['chico', 'pequeño', '60ml', '120ml'])) {
-    return "📏 Para probar o viajar, tenemos de 60ml y 120ml. ¿Para qué lo necesitás?";
-  }
-  if (this.contieneAlguna(mensaje, ['grande', '360ml', '300ml', 'economico', 'económico'])) {
-    return "📏 El de 360ml rinde más y es más económico. ¿Usás lentes a diario?";
-  }
-
-  // TIPOS DE LENTE
-  if (this.contieneAlguna(mensaje, ['diario', 'diarios'])) {
-    return "📅 Para diarios podés usar cualquier líquido, pero Renu va muy bien. ¿Te sirve?";
-  }
-  if (this.contieneAlguna(mensaje, ['mensual', 'mensuales'])) {
-    return "📅 Para mensuales recomiendo Opti-Free que limpia más en profundidad. ¿Usás mensuales?";
-  }
-
-  // PROBLEMAS ESPECÍFICOS
-  if (this.contieneAlguna(mensaje, ['sensibl', 'sensibilidad', 'alergia'])) {
-    return "🌿 Para sensibilidad, BioTrue o Renu Sensitive. ¿Tenés los ojos sensibles?";
-  }
-  if (this.contieneAlguna(mensaje, ['sequedad', 'seco', 'hidratación'])) {
-    return "💧 Para sequedad, Opti-Free Puremoist tiene extra hidratación. ¿Te sirve?";
-  }
-
-  return "¿Qué marca de líquido te interesa o querés una recomendación?";
-}
-
-manejarRespuestaObraSocial(mensaje, contexto) {
-  // OBRAS SOCIALES ESPECÍFICAS
-  if (this.contieneAlguna(mensaje, ['medicus', 'medicus'])) {
-    return "✅ Sí, trabajamos con Medicus. ¿Tenés la receta? La vigencia es de 60 días.";
-  }
-  if (this.contieneAlguna(mensaje, ['swiss', 'swiss medical'])) {
-    return "✅ Sí, trabajamos con Swiss Medical. ¿Traés receta y credencial?";
-  }
-  if (this.contieneAlguna(mensaje, ['osetya', 'osetya'])) {
-    return "✅ Sí, trabajamos con Osetya. ¿La receta tiene menos de 60 días?";
-  }
-  if (this.contieneAlguna(mensaje, ['construir', 'construir salud'])) {
-    return "✅ Sí, trabajamos con Construir Salud. ¿Tenés toda la documentación?";
-  }
-
-  // DOCUMENTACIÓN
-  if (this.contieneAlguna(mensaje, ['receta', 'documento', 'documentación', 'papeles'])) {
-    return "📋 Necesitás receta específica, credencial y DNI. ¿Todo al día?";
-  }
-
-  // VIGENCIA
-  if (this.contieneAlguna(mensaje, ['vigencia', '60 días', '60 dias', 'caduca', 'venc'])) {
-    return "⏰ La receta vale 60 días desde la emisión. ¿La tuya está en fecha?";
-  }
-
-  // TURNOS Y PROCESOS
-  if (this.contieneAlguna(mensaje, ['turno', 'cita', 'consulta', 'visita'])) {
-    return "📅 Podés venir directamente. Traé receta, credencial y DNI. ¿Qué día te viene bien?";
-  }
-
-  return "¿Tenés alguna obra social en particular o te cuento los requisitos?";
-}
-
-manejarRespuestaMarca(mensaje, contexto) {
-  // MARCAS DE ARMAZONES
-  if (this.contieneAlguna(mensaje, ['ray-ban', 'rayban', 'ray ban'])) {
-    return "😎 Ray-Ban tenemos varios modelos. ¿Aviator, Wayfarer o Clubmaster?";
-  }
-  if (this.contieneAlguna(mensaje, ['oakley', 'oakley'])) {
-    return "🚴 Oakley ideal para deporte. ¿Holbrook, Frogskins o algo más deportivo?";
-  }
-  if (this.contieneAlguna(mensaje, ['vulk', 'vulk'])) {
-    return "👓 Vulk tenemos opciones económicas y lindas. ¿Para hombre o mujer?";
-  }
-
-  // ESTILOS
-  if (this.contieneAlguna(mensaje, ['aviator', 'aviador'])) {
-    return "✈️ Aviator clásico de metal. ¿Oro, plata o negro?";
-  }
-  if (this.contieneAlguna(mensaje, ['wayfarer', 'cuadrado'])) {
-    return "🕶️ Wayfarer estilo clásico. ¿Negro, tortoise o color?";
-  }
-  if (this.contieneAlguna(mensaje, ['redondo', 'circular', 'john lennon'])) {
-    return "● Redondos muy de moda. ¿Metal o acetato?";
-  }
-
-  return "¿Te gusta algún estilo en particular o te ayudo a elegir?";
-}
-
-manejarRespuestaPrecio(mensaje, contexto) {
-  // PRODUCTOS ESPECÍFICOS
-  if (this.contieneAlguna(mensaje, ['armazon', 'armazón', 'marco', 'montura'])) {
-    return "👓 Armazones desde $55.000. ¿Buscás alguna marca en particular?";
-  }
-  if (this.contieneAlguna(mensaje, ['lente contacto', 'lentilla', 'contacto'])) {
-    return "👁️ Lentes de contacto desde $5.000 el par. ¿Diarios o mensuales?";
-  }
-  if (this.contieneAlguna(mensaje, ['liquido', 'solución'])) {
-    return "🧴 Líquidos desde $3.000. ¿Qué marca te interesa?";
-  }
-
-  // PROMOCIONES
-  if (this.contieneAlguna(mensaje, ['promo', 'promoción', 'oferta', 'descuento'])) {
-    return "🎉 3 cuotas sin interés desde $100.000 y 10% en efectivo. ¿Te sirve?";
-  }
-
-  return "¿De qué producto querés saber el precio exacto?";
-}
-
-manejarRespuestaHorario(mensaje, contexto) {
-  if (this.contieneAlguna(mensaje, ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'])) {
-    return "✅ Abrimos todos los días de 10:30 a 19:30. ¿Qué día pensás venir?";
-  }
-  if (this.contieneAlguna(mensaje, ['finde', 'fin de semana', 'sábado', 'sabado'])) {
-    return "✅ Los sábados también de 10:30 a 19:30. ¿Te viene bien el sábado?";
-  }
-  return "⏰ Abrimos de lunes a sábado de 10:30 a 19:30. ¿Te sirve algún día?";
-}
-
-manejarRespuestaDireccion(mensaje, contexto) {
-  if (this.contieneAlguna(mensaje, ['subte', 'colectivo', 'bondi', 'transporte'])) {
-    return "🚇 Estamos a 4 cuadras de Ángel Gallardo (subte B). Colectivos: 109, 110, 112.";
-  }
-  if (this.contieneAlguna(mensaje, ['estacionamiento', 'auto', 'coche', 'aparcar'])) {
-    return "🚗 Hay estacionamiento en la zona. A veces se consigue en la misma calle.";
-  }
-  return "📍 Serrano 684, Villa Crespo. ¿Necesitás indicaciones de cómo llegar?";
-}
-
-// ==================== UTILIDADES ====================
-
-esRespuestaSimpleSi(mensaje) {
-  return this.contieneAlguna(mensaje, ['si', 'sí', 'si.', 'sí.', 'claro', 'por supuesto', 'obvio', 'dale']);
-}
-
-esRespuestaSimpleNo(mensaje) {
-  return this.contieneAlguna(mensaje, ['no', 'no.', 'todavía no', 'aún no', 'aun no', 'nop']);
-}
-
-contieneAlguna(mensaje, palabras) {
-  return palabras.some(palabra => mensaje.includes(palabra));
-}
 
   respuestaNoEntendido() {
     return "🤔 No te entendí bien. ¿Podés decirlo de otra forma?";
   }
-}
-// ==================== SERVICIOS EXTERNOS ====================
-// (Por ahora vacíos - los agregaremos después con Google Sheets)
-class MemoryService {
-  constructor() {
-    this.contextos = new Map();
-  }
 
-  obtenerContextoUsuario(userId) {
-    if (!this.contextos.has(userId)) {
-      this.contextos.set(userId, { paso: 0, historial: [] });
-    }
-    return this.contextos.get(userId);
-  }
-
-  guardarContextoUsuario(userId, contexto) {
-    this.contextos.set(userId, contexto);
+  // ==================== UTILIDADES ====================
+  contieneAlguna(mensaje, palabras) {
+    return palabras.some(palabra => mensaje.includes(palabra));
   }
 }
 
