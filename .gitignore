@@ -1,5 +1,6 @@
-touch .gitignore
-echo "node_modules/" >> .gitignore
+# Creá el .gitignore rápido:
+echo "node_modules/" > .gitignore
 echo ".env" >> .gitignore
-echo ".DS_Store" >> .gitignore  
-echo "*.log" >> .gitignore
+
+# Verificá:
+cat .gitignore
