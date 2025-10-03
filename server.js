@@ -177,6 +177,206 @@ class HypnotticaFramework {
 
   async start() {
     try {
+      // Servir archivos estáticos para el probador
+app.use(express.static('public'));
+
+// Crear carpeta public si no existe
+const fs = require('fs');
+if (!fs.existsSync('public')) {
+  fs.mkdirSync('public');
+}
+
+// Crear probador web automáticamente
+const probadorHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Probador - Hypnottica Bot</title>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            padding: 20px; 
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            border-radius: 20px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
+            overflow: hidden; 
+        }
+        .header { 
+            background: linear-gradient(135deg, #25D366, #128C7E); 
+            color: white; 
+            padding: 30px; 
+            text-align: center; 
+        }
+        .chat-container { 
+            padding: 20px; 
+            height: 400px; 
+            overflow-y: auto; 
+            border-bottom: 1px solid #eee; 
+        }
+        .message { 
+            margin: 10px 0; 
+            padding: 12px 16px; 
+            border-radius: 18px; 
+            max-width: 80%; 
+            animation: fadeIn 0.3s; 
+        }
+        .user-message { 
+            background: #25D366; 
+            color: white; 
+            margin-left: auto; 
+            border-bottom-right-radius: 5px; 
+        }
+        .bot-message { 
+            background: #f0f0f0; 
+            color: #333; 
+            margin-right: auto; 
+            border-bottom-left-radius: 5px; 
+            white-space: pre-line; 
+        }
+        .input-container { 
+            padding: 20px; 
+            display: flex; 
+            gap: 10px; 
+        }
+        .input-container input { 
+            flex: 1; 
+            padding: 12px 16px; 
+            border: 2px solid #ddd; 
+            border-radius: 25px; 
+            font-size: 16px; 
+        }
+        .input-container button { 
+            padding: 12px 24px; 
+            background: #25D366; 
+            color: white; 
+            border: none; 
+            border-radius: 25px; 
+            cursor: pointer; 
+        }
+        .quick-buttons { 
+            padding: 15px 20px; 
+            background: #f8f9fa; 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 8px; 
+        }
+        .quick-button { 
+            padding: 8px 12px; 
+            background: white; 
+            border: 1px solid #25D366; 
+            border-radius: 15px; 
+            color: #25D366; 
+            cursor: pointer; 
+            font-size: 12px; 
+        }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(10px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Probador - Hypnottica Bot</h1>
+            <p>Probá las respuestas del bot en tiempo real</p>
+        </div>
+        
+        <div class="chat-container" id="chatContainer">
+            <div class="message bot-message">
+                ¡Hola! Soy Luna, tu asistente de Hypnottica. ¿En qué puedo ayudarte? 😊
+            </div>
+        </div>
+        
+        <div class="quick-buttons" id="quickButtons">
+            <div class="quick-button" onclick="sendQuickMessage('Hola')">👋 Hola</div>
+            <div class="quick-button" onclick="sendQuickMessage('Qué armazones tienen?')">👓 Armazones</div>
+            <div class="quick-button" onclick="sendQuickMessage('Precios')">💰 Precios</div>
+            <div class="quick-button" onclick="sendQuickMessage('Lentes de contacto')">👁️ Lentes contacto</div>
+            <div class="quick-button" onclick="sendQuickMessage('Horarios')">⏰ Horarios</div>
+            <div class="quick-button" onclick="sendQuickMessage('Dirección')">📍 Dirección</div>
+            <div class="quick-button" onclick="sendQuickMessage('Obras sociales')">🏥 Obras sociales</div>
+        </div>
+        
+        <div class="input-container">
+            <input type="text" id="messageInput" placeholder="Escribe tu mensaje..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        let userId = 'user-' + Math.random().toString(36).substr(2, 9);
+        
+        function addMessage(message, isUser = false) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = isUser ? 'message user-message' : 'message bot-message';
+            messageDiv.textContent = message;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            addMessage(message, true);
+            input.value = '';
+            
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        userId: userId,
+                        message: message 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    addMessage(data.response);
+                } else {
+                    addMessage('❌ Error: ' + (data.error || 'Desconocido'));
+                }
+                
+            } catch (error) {
+                addMessage('❌ Error de conexión con el servidor');
+            }
+        }
+        
+        function sendQuickMessage(message) {
+            document.getElementById('messageInput').value = message;
+            sendMessage();
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        // Mostrar userId actual
+        console.log('User ID:', userId);
+    </script>
+</body>
+</html>
+`;
+
+// Guardar el probador en public/index.html
+fs.writeFileSync('public/index.html', probadorHTML);
+console.log('🌐 Probador web creado en /public/index.html');
       // Inicializar el bot
       this.bot = new BaseBot(HYPNOTTICA_CONFIG);
       await this.bot.initialize();
