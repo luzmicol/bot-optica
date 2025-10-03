@@ -1,31 +1,33 @@
-const { GoogleSpreadsheet } = require('google-spreadsheet');
+const { google } = require('googleapis');
 
 class DataManager {
   constructor() {
-    this.sheetsCache = new Map();
+    this.sheets = null;
     this.initialized = false;
+    this.sheetsCache = new Map();
   }
 
   async initialize() {
     if (this.initialized) return;
     
-    console.log('📊 Inicializando DataManager...');
+    console.log('📊 Inicializando DataManager con Google Sheets API...');
     
     try {
-      const sheetsConfig = {
-        armazones: process.env.SHEETS_ARMAZONES,
-        lentes_contacto: process.env.SHEETS_LC,
-        liquidos: process.env.SHEETS_LIQUIDOS
-      };
-
-      for (const [sheetType, sheetId] of Object.entries(sheetsConfig)) {
-        if (sheetId) {
-          await this.initSheet(sheetType, sheetId);
-        }
-      }
+      // Autenticación con Service Account
+      const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
       
+      const auth = new google.auth.GoogleAuth({
+        credentials: {
+          client_email: credentials.client_email,
+          private_key: credentials.private_key,
+        },
+        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+      });
+
+      this.sheets = google.sheets({ version: 'v4', auth });
       this.initialized = true;
-      console.log('✅ DataManager inicializado correctamente');
+      
+      console.log('✅ DataManager inicializado correctamente con Google Sheets API');
       
     } catch (error) {
       console.error('❌ Error inicializando DataManager:', error);
@@ -33,75 +35,90 @@ class DataManager {
     }
   }
 
-  async initSheet(sheetType, sheetId) {
-    try {
-      const doc = new GoogleSpreadsheet(sheetId);
-      const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-      
-      // FORMA CORRECTA - versión actualizada
-      await doc.useServiceAccountAuth({
-        client_email: credentials.client_email,
-        private_key: credentials.private_key,
-      });
-      
-      await doc.loadInfo();
-      
-      this.sheetsCache.set(sheetType, doc);
-      console.log(`✅ Sheet "${sheetType}" cargado: ${doc.title}`);
-      
-    } catch (error) {
-      console.error(`❌ Error cargando sheet ${sheetType}:`, error.message);
-      throw error;
-    }
-  }
-
   async getProducts(sheetType, filters = {}) {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
     try {
-      const doc = this.sheetsCache.get(sheetType);
-      if (!doc) {
-        throw new Error(`Sheet no encontrado: ${sheetType}`);
+      const sheetId = this.getSheetId(sheetType);
+      if (!sheetId) {
+        throw new Error(`No sheet ID configurado para: ${sheetType}`);
       }
 
-      const sheet = doc.sheetsByIndex[0];
-      const rows = await sheet.getRows();
+      // Leer datos del sheet
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: sheetId,
+        range: 'A:Z', // Leer todas las columnas
+      });
+
+      const rows = response.data.values || [];
       
-      console.log(`📈 Obtenidos ${rows.length} registros de ${sheetType}`);
+      if (rows.length === 0) {
+        console.log(`📭 Sheet ${sheetType} está vacío`);
+        return [];
+      }
+
+      console.log(`📈 Obtenidos ${rows.length - 1} registros de ${sheetType}`);
       
-      const products = rows.map(row => this.parseRowToProduct(row, sheetType));
+      // Convertir filas a productos
+      const headers = rows[0];
+      const products = rows.slice(1).map((row, index) => 
+        this.parseRowToProduct(row, headers, sheetType, index)
+      );
       
       return this.applyFilters(products, filters);
       
     } catch (error) {
-      console.error(`Error obteniendo productos de ${sheetType}:`, error);
+      console.error(`Error obteniendo productos de ${sheetType}:`, error.message);
       return [];
     }
   }
 
-  parseRowToProduct(row, sheetType) {
-    const baseProduct = {
-      id: row.Codigo || row.ID || row.codigo || row.Id,
-      name: row.Producto || row.Modelo || row.Nombre || row.producto,
-      price: this.parsePrice(row.Precio || row.Valor || row.precio),
-      stock: parseInt(row.Stock || row.Cantidad || row.stock || 0),
-      brand: row.Marca || row.Fabricante || row.marca,
+  getSheetId(sheetType) {
+    const sheetIds = {
+      armazones: process.env.SHEETS_ARMAZONES,
+      lentes_contacto: process.env.SHEETS_LC,
+      liquidos: process.env.SHEETS_LIQUIDOS
+    };
+    
+    return sheetIds[sheetType];
+  }
+
+  parseRowToProduct(row, headers, sheetType, rowIndex) {
+    const product = {
+      id: this.getCellValue(row, headers, 'Codigo') || this.getCellValue(row, headers, 'ID') || `row-${rowIndex + 2}`,
+      name: this.getCellValue(row, headers, 'Producto') || this.getCellValue(row, headers, 'Nombre') || this.getCellValue(row, headers, 'Modelo') || 'Sin nombre',
+      price: this.parsePrice(this.getCellValue(row, headers, 'Precio') || this.getCellValue(row, headers, 'Valor')),
+      stock: parseInt(this.getCellValue(row, headers, 'Stock') || this.getCellValue(row, headers, 'Cantidad') || 0),
+      brand: this.getCellValue(row, headers, 'Marca') || this.getCellValue(row, headers, 'Fabricante'),
       category: sheetType,
-      rawData: row._rawData
+      rowData: row
     };
 
+    // Campos específicos por tipo
     if (sheetType === 'armazones') {
-      baseProduct.material = row.Material || row.material;
-      baseProduct.color = row.Color || row.color;
-      baseProduct.model = row.Modelo || row.modelo;
+      product.material = this.getCellValue(row, headers, 'Material');
+      product.color = this.getCellValue(row, headers, 'Color');
+      product.model = this.getCellValue(row, headers, 'Modelo');
     } else if (sheetType === 'lentes_contacto') {
-      baseProduct.tipo = row.Tipo || row.tipo;
-      baseProduct.graduacion = row.Graduacion || row.graduacion;
-      baseProduct.duracion = row.Duracion || row.duracion;
+      product.tipo = this.getCellValue(row, headers, 'Tipo');
+      product.graduacion = this.getCellValue(row, headers, 'Graduacion') || this.getCellValue(row, headers, 'Graduación');
+      product.duracion = this.getCellValue(row, headers, 'Duracion') || this.getCellValue(row, headers, 'Duración');
     } else if (sheetType === 'liquidos') {
-      baseProduct.tamano = row.Tamaño || row.Tamano || row.tamaño;
-      baseProduct.composicion = row.Composicion || row.composicion;
+      product.tamano = this.getCellValue(row, headers, 'Tamaño') || this.getCellValue(row, headers, 'Tamano') || this.getCellValue(row, headers, 'Tamaño');
+      product.composicion = this.getCellValue(row, headers, 'Composicion') || this.getCellValue(row, headers, 'Composición');
     }
 
-    return baseProduct;
+    return product;
+  }
+
+  getCellValue(row, headers, columnName) {
+    const index = headers.findIndex(header => 
+      header && header.toString().toLowerCase().includes(columnName.toLowerCase())
+    );
+    
+    return index >= 0 && row[index] ? row[index].toString().trim() : null;
   }
 
   parsePrice(price) {
@@ -119,17 +136,11 @@ class DataManager {
     return products.filter(product => {
       if (filters.inStock && product.stock < 1) return false;
       if (filters.maxPrice && product.price > filters.maxPrice) return false;
-      if (filters.brand && !product.brand?.toLowerCase().includes(filters.brand.toLowerCase())) return false;
+      if (filters.brand && product.brand && !product.brand.toLowerCase().includes(filters.brand.toLowerCase())) return false;
       if (filters.category && product.category !== filters.category) return false;
       
       return true;
     });
-  }
-
-  async getStock(sheetType, productId) {
-    const products = await this.getProducts(sheetType);
-    const product = products.find(p => p.id === productId);
-    return product ? product.stock : 0;
   }
 
   async searchProducts(query, sheetType = null) {
@@ -142,9 +153,9 @@ class DataManager {
     }
 
     return allProducts.filter(product => 
-      product.name?.toLowerCase().includes(query.toLowerCase()) ||
-      product.brand?.toLowerCase().includes(query.toLowerCase()) ||
-      product.category?.toLowerCase().includes(query.toLowerCase())
+      product.name && product.name.toLowerCase().includes(query.toLowerCase()) ||
+      product.brand && product.brand.toLowerCase().includes(query.toLowerCase()) ||
+      product.category && product.category.toLowerCase().includes(query.toLowerCase())
     );
   }
 }
