@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const fs = require('fs');
+const path = require('path');
 
 const BaseBot = require('./core/BaseBot');
 const HYPNOTTICA_CONFIG = require('./businesses/hypnottica/config');
@@ -12,6 +14,7 @@ class HypnotticaFramework {
     this.bot = null;
     this.setupMiddleware();
     this.setupRoutes();
+    this.setupProbador();
   }
 
   setupMiddleware() {
@@ -40,7 +43,8 @@ class HypnotticaFramework {
           'google-sheets-integration',
           'context-management', 
           'product-catalog',
-          'multi-intent-handling'
+          'multi-intent-handling',
+          'web-chat-interface'
         ]
       });
     });
@@ -52,7 +56,8 @@ class HypnotticaFramework {
         endpoints: {
           chat: 'POST /api/chat',
           health: 'GET /health',
-          business: 'GET /api/business'
+          business: 'GET /api/business',
+          probador: 'GET /probador'
         }
       });
     });
@@ -144,55 +149,22 @@ class HypnotticaFramework {
         });
       }
     });
-
-    // 404 handler
-    this.app.use('*', (req, res) => {
-      res.status(404).json({
-        success: false,
-        error: 'Endpoint no encontrado',
-        availableEndpoints: {
-          'GET /health': 'Health check del sistema',
-          'GET /api/business': 'Información del negocio',
-          'POST /api/chat': 'Endpoint principal de chat',
-          'GET /api/test-sheets': 'Probar conexión con Google Sheets'
-        }
-      });
-    });
-
-    // Error handler
-    this.app.use((error, req, res, next) => {
-      console.error('🚨 Error no manejado:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error interno del servidor',
-        timestamp: new Date().toISOString()
-      });
-    });
   }
 
-  trackInteraction(userId, message, response, channel) {
-    // Analytics básico - en Fase 2 será más avanzado
-    console.log(`📊 Analytics - User: ${userId}, Channel: ${channel}, Message: ${message.substring(0, 50)}...`);
-  }
+  setupProbador() {
+    // Crear carpeta public si no existe
+    if (!fs.existsSync('public')) {
+      fs.mkdirSync('public');
+    }
 
-  async start() {
-    try {
-      // Servir archivos estáticos para el probador
-app.use(express.static('public'));
-
-// Crear carpeta public si no existe
-const fs = require('fs');
-if (!fs.existsSync('public')) {
-  fs.mkdirSync('public');
-}
-
-// Crear probador web automáticamente
-const probadorHTML = `
+    // HTML del probador
+    const probadorHTML = `
 <!DOCTYPE html>
 <html>
 <head>
     <title>Probador - Hypnottica Bot</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -208,25 +180,39 @@ const probadorHTML = `
             border-radius: 20px; 
             box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
             overflow: hidden; 
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
         }
         .header { 
             background: linear-gradient(135deg, #25D366, #128C7E); 
             color: white; 
-            padding: 30px; 
+            padding: 20px; 
             text-align: center; 
         }
+        .header h1 { 
+            font-size: 1.8em; 
+            margin-bottom: 5px; 
+        }
+        .header p { 
+            opacity: 0.9; 
+            font-size: 1em; 
+        }
         .chat-container { 
-            padding: 20px; 
-            height: 400px; 
+            flex: 1;
+            padding: 15px; 
             overflow-y: auto; 
             border-bottom: 1px solid #eee; 
+            display: flex;
+            flex-direction: column;
         }
         .message { 
-            margin: 10px 0; 
+            margin: 8px 0; 
             padding: 12px 16px; 
             border-radius: 18px; 
-            max-width: 80%; 
+            max-width: 85%; 
             animation: fadeIn 0.3s; 
+            line-height: 1.4;
         }
         .user-message { 
             background: #25D366; 
@@ -242,9 +228,10 @@ const probadorHTML = `
             white-space: pre-line; 
         }
         .input-container { 
-            padding: 20px; 
+            padding: 15px; 
             display: flex; 
             gap: 10px; 
+            background: #f8f9fa;
         }
         .input-container input { 
             flex: 1; 
@@ -252,21 +239,30 @@ const probadorHTML = `
             border: 2px solid #ddd; 
             border-radius: 25px; 
             font-size: 16px; 
+            outline: none;
+        }
+        .input-container input:focus { 
+            border-color: #25D366; 
         }
         .input-container button { 
-            padding: 12px 24px; 
+            padding: 12px 20px; 
             background: #25D366; 
             color: white; 
             border: none; 
             border-radius: 25px; 
             cursor: pointer; 
+            font-weight: bold;
+        }
+        .input-container button:hover { 
+            background: #128C7E; 
         }
         .quick-buttons { 
-            padding: 15px 20px; 
+            padding: 12px 15px; 
             background: #f8f9fa; 
             display: flex; 
             flex-wrap: wrap; 
             gap: 8px; 
+            border-top: 1px solid #eee;
         }
         .quick-button { 
             padding: 8px 12px; 
@@ -276,10 +272,29 @@ const probadorHTML = `
             color: #25D366; 
             cursor: pointer; 
             font-size: 12px; 
+            transition: all 0.3s;
+        }
+        .quick-button:hover { 
+            background: #25D366; 
+            color: white; 
+        }
+        .typing { 
+            color: #666; 
+            font-style: italic; 
+            padding: 10px;
         }
         @keyframes fadeIn { 
             from { opacity: 0; transform: translateY(10px); } 
             to { opacity: 1; transform: translateY(0); } 
+        }
+        .status {
+            background: #e7f3ff;
+            padding: 8px 12px;
+            margin: 5px 15px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: #0066cc;
+            text-align: center;
         }
     </style>
 </head>
@@ -290,9 +305,23 @@ const probadorHTML = `
             <p>Probá las respuestas del bot en tiempo real</p>
         </div>
         
+        <div class="status" id="status">
+            ✅ Conectado - Escribí un mensaje o usá los botones rápidos
+        </div>
+        
         <div class="chat-container" id="chatContainer">
             <div class="message bot-message">
-                ¡Hola! Soy Luna, tu asistente de Hypnottica. ¿En qué puedo ayudarte? 😊
+                ¡Hola! Soy Luna, tu asistente de Hypnottica. 😊
+
+¿En qué puedo ayudarte hoy?
+
+• 👓 Consultar armazones y modelos
+• 👁️ Información de lentes de contacto  
+• 💰 Precios y promociones
+• 📦 Stock disponible
+• 🏥 Obras sociales
+• ⏰ Horarios de atención
+• 📍 Dirección y ubicación
             </div>
         </div>
         
@@ -304,6 +333,7 @@ const probadorHTML = `
             <div class="quick-button" onclick="sendQuickMessage('Horarios')">⏰ Horarios</div>
             <div class="quick-button" onclick="sendQuickMessage('Dirección')">📍 Dirección</div>
             <div class="quick-button" onclick="sendQuickMessage('Obras sociales')">🏥 Obras sociales</div>
+            <div class="quick-button" onclick="sendQuickMessage('Stock')">📦 Stock</div>
         </div>
         
         <div class="input-container">
@@ -314,6 +344,14 @@ const probadorHTML = `
 
     <script>
         let userId = 'user-' + Math.random().toString(36).substr(2, 9);
+        let isTyping = false;
+        
+        function updateStatus(message, isError = false) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.style.background = isError ? '#ffe7e7' : '#e7f3ff';
+            status.style.color = isError ? '#cc0000' : '#0066cc';
+        }
         
         function addMessage(message, isUser = false) {
             const chatContainer = document.getElementById('chatContainer');
@@ -324,6 +362,26 @@ const probadorHTML = `
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
         
+        function showTyping() {
+            if (isTyping) return;
+            isTyping = true;
+            const chatContainer = document.getElementById('chatContainer');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'typing';
+            typingDiv.id = 'typingIndicator';
+            typingDiv.textContent = 'Luna está escribiendo...';
+            chatContainer.appendChild(typingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        function hideTyping() {
+            isTyping = false;
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+        
         async function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
@@ -332,6 +390,9 @@ const probadorHTML = `
             
             addMessage(message, true);
             input.value = '';
+            updateStatus('🔄 Enviando mensaje...');
+            
+            showTyping();
             
             try {
                 const response = await fetch('/api/chat', {
@@ -344,15 +405,21 @@ const probadorHTML = `
                 });
                 
                 const data = await response.json();
+                hideTyping();
                 
                 if (data.success) {
                     addMessage(data.response);
+                    updateStatus('✅ Mensaje recibido - ' + new Date().toLocaleTimeString());
                 } else {
                     addMessage('❌ Error: ' + (data.error || 'Desconocido'));
+                    updateStatus('❌ Error en la respuesta', true);
                 }
                 
             } catch (error) {
+                hideTyping();
                 addMessage('❌ Error de conexión con el servidor');
+                updateStatus('❌ Error de conexión', true);
+                console.error('Error:', error);
             }
         }
         
@@ -367,16 +434,40 @@ const probadorHTML = `
             }
         }
         
-        // Mostrar userId actual
-        console.log('User ID:', userId);
+        // Mostrar userId actual en consola
+        console.log('User ID para testing:', userId);
+        updateStatus('✅ Conectado - User: ' + userId);
     </script>
 </body>
 </html>
 `;
 
-// Guardar el probador en public/index.html
-fs.writeFileSync('public/index.html', probadorHTML);
-console.log('🌐 Probador web creado en /public/index.html');
+    // Guardar el probador
+    fs.writeFileSync(path.join(__dirname, 'public', 'index.html'), probadorHTML);
+
+    // Ruta para el probador web
+    this.app.get('/probador', (req, res) => {
+      res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    });
+
+    // Ruta raíz también redirige al probador
+    this.app.get('/', (req, res) => {
+      res.redirect('/probador');
+    });
+
+    // Servir archivos estáticos
+    this.app.use(express.static('public'));
+  }
+
+  trackInteraction(userId, message, response, channel) {
+    // Analytics básico
+    console.log(`📊 Analytics - User: ${userId}, Channel: ${channel}, ` +
+                `Message: "${message.substring(0, 50)}...", ` +
+                `Response: ${response.length} chars`);
+  }
+
+  async start() {
+    try {
       // Inicializar el bot
       this.bot = new BaseBot(HYPNOTTICA_CONFIG);
       await this.bot.initialize();
@@ -391,17 +482,18 @@ console.log('🌐 Probador web creado en /public/index.html');
         console.log(`🏢 Negocio: ${HYPNOTTICA_CONFIG.name}`);
         console.log(`🤖 Bot: ${HYPNOTTICA_CONFIG.personality.name}`);
         console.log(`📊 Fuentes de datos: Google Sheets (${Object.keys(HYPNOTTICA_CONFIG.dataSources).length} sheets)`);
+        console.log(`🌐 Probador: http://localhost:${PORT}/probador`);
+        console.log(`🌐 Health: http://localhost:${PORT}/health`);
         console.log(`🌐 Entornos: ${process.env.NODE_ENV || 'development'}`);
         console.log('='.repeat(60));
         console.log('\n📋 Endpoints disponibles:');
-        console.log(`   GET  /health          - Health check`);
-        console.log(`   GET  /api/business    - Información del negocio`);
-        console.log(`   POST /api/chat        - Chat principal`);
-        console.log(`   GET  /api/test-sheets - Probar conexión Sheets`);
-        console.log('\n💡 Ejemplo de uso:');
-        console.log(`   curl -X POST http://localhost:${PORT}/api/chat \\`);
-        console.log(`        -H "Content-Type: application/json" \\`);
-        console.log(`        -d '{"userId": "test-user", "message": "Hola"}'`);
+        console.log(`   GET  /                   - Probador web`);
+        console.log(`   GET  /probador           - Probador web`);
+        console.log(`   GET  /health             - Health check`);
+        console.log(`   GET  /api/business       - Información del negocio`);
+        console.log(`   POST /api/chat           - Chat principal`);
+        console.log(`   GET  /api/test-sheets    - Probar conexión Sheets`);
+        console.log('\n💡 ¡El bot está listo para usar!');
         console.log('\n');
       });
 
