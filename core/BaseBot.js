@@ -10,7 +10,11 @@ class BaseBot {
     
     console.log(`🤖 Inicializando bot para: ${businessConfig.name}`);
   }
+// En el método processMessage, después de detectIntent:
+console.log(`🎯 Intención detectada: ${intent} para mensaje: "${message}"`);
 
+// Después de generar respuesta:
+console.log(`✅ Respuesta generada (${intent}): ${response.substring(0, 100)}...`);
   async initialize() {
     if (this.initialized) return;
     
