@@ -12,7 +12,6 @@ class DataManager {
     console.log('📊 Inicializando DataManager...');
     
     try {
-      // Inicializar todas las sheets configuradas
       const sheetsConfig = {
         armazones: process.env.SHEETS_ARMAZONES,
         lentes_contacto: process.env.SHEETS_LC,
@@ -39,7 +38,12 @@ class DataManager {
       const doc = new GoogleSpreadsheet(sheetId);
       const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
       
-      await doc.useServiceAccountAuth(credentials);
+      // FORMA CORRECTA - versión actualizada
+      await doc.useServiceAccountAuth({
+        client_email: credentials.client_email,
+        private_key: credentials.private_key,
+      });
+      
       await doc.loadInfo();
       
       this.sheetsCache.set(sheetType, doc);
@@ -65,7 +69,6 @@ class DataManager {
       
       const products = rows.map(row => this.parseRowToProduct(row, sheetType));
       
-      // Aplicar filtros si existen
       return this.applyFilters(products, filters);
       
     } catch (error) {
@@ -75,7 +78,6 @@ class DataManager {
   }
 
   parseRowToProduct(row, sheetType) {
-    // Mapeo flexible para diferentes estructuras de sheets
     const baseProduct = {
       id: row.Codigo || row.ID || row.codigo || row.Id,
       name: row.Producto || row.Modelo || row.Nombre || row.producto,
@@ -83,16 +85,15 @@ class DataManager {
       stock: parseInt(row.Stock || row.Cantidad || row.stock || 0),
       brand: row.Marca || row.Fabricante || row.marca,
       category: sheetType,
-      rawData: row._rawData // Mantener datos originales
+      rawData: row._rawData
     };
 
-    // Campos específicos por tipo de producto
     if (sheetType === 'armazones') {
       baseProduct.material = row.Material || row.material;
       baseProduct.color = row.Color || row.color;
       baseProduct.model = row.Modelo || row.modelo;
     } else if (sheetType === 'lentes_contacto') {
-      baseProduct.tipo = row.Tipo || row.tipo; // diario, mensual
+      baseProduct.tipo = row.Tipo || row.tipo;
       baseProduct.graduacion = row.Graduacion || row.graduacion;
       baseProduct.duracion = row.Duracion || row.duracion;
     } else if (sheetType === 'liquidos') {
@@ -105,11 +106,8 @@ class DataManager {
 
   parsePrice(price) {
     if (!price) return 0;
-    
-    // Convertir string de precio a número
     const priceStr = price.toString().replace(/[^\d.,]/g, '');
     const priceNum = parseFloat(priceStr.replace(',', '.'));
-    
     return isNaN(priceNum) ? 0 : priceNum;
   }
 
@@ -134,7 +132,6 @@ class DataManager {
     return product ? product.stock : 0;
   }
 
-  // Método para búsqueda semántica futura
   async searchProducts(query, sheetType = null) {
     const sheetTypes = sheetType ? [sheetType] : ['armazones', 'lentes_contacto', 'liquidos'];
     let allProducts = [];
@@ -144,7 +141,6 @@ class DataManager {
       allProducts = allProducts.concat(products);
     }
 
-    // Búsqueda básica por ahora (en Fase 2 será con embeddings)
     return allProducts.filter(product => 
       product.name?.toLowerCase().includes(query.toLowerCase()) ||
       product.brand?.toLowerCase().includes(query.toLowerCase()) ||
