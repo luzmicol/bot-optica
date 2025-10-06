@@ -1,16 +1,24 @@
+// server.js - FLUJO MEJORADO
 require('dotenv').config();
 const express = require('express');
+const DataManager = require('./core/DataManager');
 const app = express();
 
 app.use(express.json());
 
+let dataManager;
+
+async function initializeApp() {
+  dataManager = new DataManager();
+  const success = await dataManager.initialize();
+  console.log(success ? '✅ Conectado a datos reales' : '⚠️ Modo básico');
+}
+
+initializeApp();
+
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    message: 'Servidor funcionando',
-    timestamp: new Date().toISOString()
-  });
+  res.json({ status: 'ok', message: 'Servidor funcionando' });
 });
 
 // Endpoint de chat MEJORADO
@@ -18,223 +26,183 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { userId, message } = req.body;
     
-    console.log('Mensaje recibido:', { userId, message });
+    console.log('💬 Mensaje:', message);
     
     const mensajeLower = message.toLowerCase();
     let respuesta = '';
 
+    // DETECCIÓN MEJORADA CON FLUJO LÓGICO
     if (mensajeLower.includes('hola') || mensajeLower.includes('buenas')) {
-      respuesta = '¡Hola! Soy Luna 👋, asistente de Hypnottica. ¿En qué puedo ayudarte?\n\nPodés consultar:\n• 👓 Armazones en stock\n• 👁️ Lentes de contacto\n• 🧴 Líquidos y accesorios\n• 💰 Precios\n• 📍 Dirección y horarios';
+      respuesta = '¡Hola! Soy Luna 👋 de Hypnottica. ¿En qué puedo ayudarte?\n\nPodés consultar:\n• 👓 Armazones en stock\n• 👁️ Lentes de contacto\n• 🎁 Kits y combos\n• 📍 Horarios y dirección';
+
+    } else if ((mensajeLower.includes('lente') && mensajeLower.includes('contacto')) || mensajeLower.includes('lentilla')) {
+      // LENTES DE CONTACTO - SOLO MARCAS
+      const marcasLC = dataManager.getMarcasLentesContacto();
+      respuesta = `👁️ **Marcas de lentes de contacto:**\n\n${marcasLC.map(m => `• ${m}`).join('\n')}\n\n¿Te interesa alguna marca en particular?`;
 
     } else if (mensajeLower.includes('marca') || mensajeLower.includes('armazon') || 
-               mensajeLower.includes('ray-ban') || mensajeLower.includes('oakley') || 
-               mensajeLower.includes('vulk') || mensajeLower.includes('sarkany')) {
+               mensajeLower.includes('vulk') || mensajeLower.includes('sarkany') ||
+               mensajeLower.includes('ray-ban') || mensajeLower.includes('oakley')) {
       
-      respuesta = `👓 **Marcas que trabajamos:**\n\n• Ray-Ban\n• Oakley\n• Vulk\n• Sarkany\n• Y muchas más\n\n¿Te interesa ver disponibilidad de alguna marca en particular?`;
+      // MARCAS REALES DEL STOCK
+      const marcasReales = await dataManager.getMarcasReales();
+      
+      if (marcasReales.length > 0) {
+        respuesta = `👓 **Marcas disponibles en stock:**\n\n${marcasReales.map(m => `• ${m}`).join('\n')}\n\n¿De qué marca querés ver modelos?`;
+      } else {
+        respuesta = '📊 Estoy consultando el stock. ¿Qué marca específica te interesa?';
+      }
+
+    } else if (mensajeLower.includes('vulk') || mensajeLower.includes('sarkany') || 
+               mensajeLower.includes('ray-ban') || mensajeLower.includes('oakley')) {
+      
+      // BUSCAR MODELOS DE MARCA ESPECÍFICA
+      let marcaBuscada = '';
+      if (mensajeLower.includes('vulk')) marcaBuscada = 'Vulk';
+      else if (mensajeLower.includes('sarkany')) marcaBuscada = 'Sarkany';
+      else if (mensajeLower.includes('ray-ban')) marcaBuscada = 'Ray-Ban';
+      else if (mensajeLower.includes('oakley')) marcaBuscada = 'Oakley';
+      
+      const modelos = await dataManager.buscarPorMarca(marcaBuscada);
+      
+      if (modelos.length > 0) {
+        respuesta = `👓 **${marcaBuscada} - Modelos en stock:**\n\n`;
+        
+        modelos.slice(0, 4).forEach((modelo, index) => {
+          respuesta += `${index + 1}. ${modelo.modelo}\n`;
+          respuesta += `   🎨 ${modelo.color} | 💰 $${modelo.precio} | 📦 ${modelo.stock} un.\n`;
+          if (modelo.descripcion) respuesta += `   📝 ${modelo.descripcion}\n`;
+          respuesta += '\n';
+        });
+        
+        respuesta += `📍 **Vení a probártelos:** Serrano 684, Villa Crespo`;
+      } else {
+        respuesta = `🔍 No encontré modelos de ${marcaBuscada} en stock en este momento. ¿Te interesa otra marca?`;
+      }
 
     } else if (mensajeLower.includes('stock') || mensajeLower.includes('disponible') || 
-               mensajeLower.includes('tienen') || mensajeLower.includes('modelo')) {
+               mensajeLower.includes('modelo') || mensajeLower.includes('tienen')) {
       
-      respuesta = '📦 Para consultar stock específico, necesito que me digas:\n\n• Qué marca te interesa (Ray-Ban, Oakley, Vulk, etc.)\n• O algún modelo en particular\n\n¿Qué estás buscando?';
-
-    } else if (mensajeLower.includes('lente') && mensajeLower.includes('contacto')) {
-      respuesta = `👁️ **Lentes de contacto disponibles:**\n\n• Acuvue Oasis (Mensuales/Diarios)\n• Biofinity (Mensuales)\n• Air Optix (Mensuales)\n\n¿Te interesa alguna marca?`;
-
-    } else if (mensajeLower.includes('liquido') || mensajeLower.includes('solucion')) {
-      respuesta = `🧴 **Líquidos y soluciones:**\n\n• Solución Multiuso (Renu, Opti-Free)\n• Gotas Humectantes (Systane, Blink)\n• Peróxido (Ao Sept, Clear Care)\n\n¿Qué tipo de líquido necesitás?`;
+      respuesta = '🔍 **Para consultar stock:**\n\nDecime qué marca te interesa:\n• Vulk\n• Sarkany\n• O alguna otra marca específica\n\n¿Qué buscás?';
 
     } else if (mensajeLower.includes('precio') || mensajeLower.includes('cuesta') || mensajeLower.includes('valor')) {
-      respuesta = `💰 **Rangos de precios:**\n\n👓 Armazones: $55.000 - $370.000\n👁️ Lentes de contacto: $15.000 - $25.000\n🧴 Líquidos: $3.500 - $7.000\n\n*Los precios varían según marca y características.*`;
+      
+      // PRECIOS REALES SOLO SI HAY DATOS
+      const rango = await dataManager.getRangoPreciosReal();
+      
+      if (rango) {
+        respuesta = `💰 **Precios de armazones:**\n$${rango.min} - $${rango.max}\n\n*Varían según marca y modelo.*`;
+      } else {
+        respuesta = '💰 Los precios dependen del modelo y marca. ¿Te interesa alguna en particular para consultar?';
+      }
 
-    } else if (mensajeLower.includes('direccion') || mensajeLower.includes('ubicacion')) {
-      respuesta = '📍 **Hypnottica Óptica**\nSerrano 684, Villa Crespo, CABA\n🚇 A 4 cuadras de Ángel Gallardo (Línea B)\n📞 1132774631';
+    } else if (mensajeLower.includes('combo') || mensajeLower.includes('kit') || mensajeLower.includes('pack')) {
+      
+      const combos = dataManager.getCombos();
+      respuesta = `🎁 **Kits disponibles:**\n\n${combos.map(c => `• **${c.nombre}** - $${c.precio}\n   📦 ${c.productos.join(', ')}`).join('\n\n')}\n\n¿Te interesa algún kit?`;
+
+    } else if (mensajeLower.includes('obra social') || mensajeLower.includes('prepaga') || mensajeLower.includes('medicus')) {
+      
+      respuesta = '🏥 **Obras sociales:**\n• Medicus\n• Osetya\n• Construir Salud\n• Swiss Medical\n\n📋 Requisitos: Receta vigente + credencial';
 
     } else if (mensajeLower.includes('horario')) {
-      respuesta = '⏰ **Horarios de atención:**\nLunes a Sábado: 10:30 - 19:30\n\n¿Te sirve algún día en particular?';
+      
+      respuesta = '⏰ **Horarios:**\nLunes a Sábado: 10:30 - 19:30\n\n📍 **Dirección:** Serrano 684, Villa Crespo';
 
-    } else if (mensajeLower.includes('obra social')) {
-      respuesta = '🏥 **Obras sociales que aceptamos:**\n\n• Medicus\n• Osetya\n• Construir Salud\n• Swiss Medical\n\n¿Tenés alguna en particular?';
+    } else if (mensajeLower.includes('direccion') || mensajeLower.includes('ubicacion')) {
+      
+      respuesta = '📍 **Hypnottica Óptica**\nSerrano 684, Villa Crespo, CABA\n🚇 A 4 cuadras de Ángel Gallardo (Línea B)\n📞 1132774631';
 
     } else {
-      respuesta = `🤔 No estoy segura de entender "${message}".\n\nPodés preguntarme por:\n• Marcas y modelos de armazones\n• Stock disponible\n• Precios\n• Lentes de contacto\n• Líquidos y accesorios\n• Horarios y dirección`;
+      
+      respuesta = `🤔 No entendí "${message}".\n\nPodés preguntarme por:\n• Marcas de armazones\n• Lentes de contacto\n• Kits y combos\n• Horarios y dirección\n\n¿En qué te ayudo?`;
     }
     
     res.json({
       success: true,
-      response: respuesta,
-      timestamp: new Date().toISOString()
+      response: respuesta
     });
     
   } catch (error) {
     console.error('Error en /api/chat:', error);
     res.status(500).json({
       success: false,
-      response: '⚠️ Estoy teniendo dificultades técnicas. Por favor, intentá nuevamente.',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      response: '⚠️ Error temporal. Por favor, intentá nuevamente.'
     });
   }
 });
 
-// Probador web SUPER SIMPLE
+// Probador web MEJORADO
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Probador Bot</title>
+        <title>Hypnottica Bot - Stock Real</title>
         <meta charset="UTF-8">
         <style>
-            body { 
-                font-family: Arial, sans-serif; 
-                max-width: 800px; 
-                margin: 0 auto; 
-                padding: 20px; 
-                background: #f5f5f5;
-            }
-            .container {
-                background: white;
-                padding: 20px;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            }
-            .chat-box {
-                height: 400px;
-                border: 1px solid #ddd;
-                padding: 15px;
-                margin: 20px 0;
-                overflow-y: auto;
-                background: #fafafa;
-            }
-            .message {
-                margin: 10px 0;
-                padding: 10px;
-                border-radius: 10px;
-                max-width: 80%;
-            }
-            .user-message {
-                background: #007bff;
-                color: white;
-                margin-left: auto;
-            }
-            .bot-message {
-                background: #e9ecef;
-                color: #333;
-                margin-right: auto;
-                white-space: pre-line;
-            }
-            .input-container {
-                display: flex;
-                gap: 10px;
-            }
-            input {
-                flex: 1;
-                padding: 10px;
-                border: 1px solid #ddd;
-                border-radius: 5px;
-            }
-            button {
-                padding: 10px 20px;
-                background: #007bff;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                cursor: pointer;
-            }
-            .quick-buttons {
-                display: flex;
-                gap: 10px;
-                margin: 10px 0;
-                flex-wrap: wrap;
-            }
-            .quick-btn {
-                padding: 8px 12px;
-                background: #28a745;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                cursor: pointer;
-                font-size: 12px;
-            }
+            body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+            .container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .chat-box { height: 400px; border: 1px solid #ddd; padding: 15px; margin: 20px 0; overflow-y: auto; background: #fafafa; }
+            .message { margin: 10px 0; padding: 10px; border-radius: 10px; max-width: 80%; white-space: pre-line; }
+            .user-message { background: #007bff; color: white; margin-left: auto; }
+            .bot-message { background: #e9ecef; color: #333; margin-right: auto; }
+            .input-container { display: flex; gap: 10px; }
+            input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+            button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+            .quick-buttons { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+            .quick-btn { padding: 8px 12px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>🤖 Probador - Hypnottica Bot</h1>
-            <p>Probá el bot con estos mensajes rápidos:</p>
+            <h1>🤖 Hypnottica - Stock Real</h1>
+            <p>Probá consultando marcas específicas:</p>
             
             <div class="quick-buttons">
-                <button class="quick-btn" onclick="enviarMensaje('Hola')">👋 Hola</button>
-                <button class="quick-btn" onclick="enviarMensaje('Marcas de armazones')">👓 Marcas</button>
-                <button class="quick-btn" onclick="enviarMensaje('Precios')">💰 Precios</button>
+                <button class="quick-btn" onclick="enviarMensaje('Marcas de armazones')">👓 Marcas reales</button>
                 <button class="quick-btn" onclick="enviarMensaje('Lentes de contacto')">👁️ Lentes contacto</button>
-                <button class="quick-btn" onclick="enviarMensaje('Horarios')">⏰ Horarios</button>
-                <button class="quick-btn" onclick="enviarMensaje('Obras sociales')">🏥 Obras sociales</button>
+                <button class="quick-btn" onclick="enviarMensaje('Vulk')">🕶️ Modelos Vulk</button>
+                <button class="quick-btn" onclick="enviarMensaje('Kits disponibles')">🎁 Kits reales</button>
             </div>
             
             <div class="chat-box" id="chatBox">
                 <div class="message bot-message">
-                    ¡Hola! Soy Luna. Escribí un mensaje o usá los botones de arriba.
+                    ¡Hola! Consulto stock REAL de Google Sheets.
+                    Probá preguntando por marcas específicas como "Vulk" o "Sarkany".
                 </div>
             </div>
             
             <div class="input-container">
-                <input type="text" id="messageInput" placeholder="Escribe tu mensaje...">
+                <input type="text" id="messageInput" placeholder="Ej: Modelos Vulk en stock..." onkeypress="if(event.key=='Enter') enviarMensaje()">
                 <button onclick="enviarMensaje()">Enviar</button>
             </div>
         </div>
 
         <script>
-            function agregarMensaje(texto, esUsuario = false) {
-                const chatBox = document.getElementById('chatBox');
-                const mensaje = document.createElement('div');
-                mensaje.className = esUsuario ? 'message user-message' : 'message bot-message';
-                mensaje.textContent = texto;
-                chatBox.appendChild(mensaje);
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }
-
             async function enviarMensaje(mensajePredefinido = null) {
                 const input = document.getElementById('messageInput');
                 const mensaje = mensajePredefinido || input.value.trim();
-                
                 if (!mensaje) return;
                 
-                if (!mensajePredefinido) {
-                    input.value = '';
-                }
-                
-                agregarMensaje(mensaje, true);
+                const chatBox = document.getElementById('chatBox');
+                chatBox.innerHTML += '<div class="message user-message">' + mensaje + '</div>';
+                if (!mensajePredefinido) input.value = '';
                 
                 try {
                     const respuesta = await fetch('/api/chat', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            userId: 'user-' + Date.now(),
-                            message: mensaje
-                        })
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: 'user-' + Date.now(), message: mensaje })
                     });
                     
                     const datos = await respuesta.json();
-                    
-                    if (datos.success) {
-                        agregarMensaje(datos.response);
-                    } else {
-                        agregarMensaje('Error: ' + (datos.error || 'Desconocido'));
-                    }
-                    
+                    chatBox.innerHTML += '<div class="message bot-message">' + datos.response + '</div>';
+                    chatBox.scrollTop = chatBox.scrollHeight;
                 } catch (error) {
-                    agregarMensaje('Error de conexión con el servidor');
+                    chatBox.innerHTML += '<div class="message bot-message">❌ Error de conexión</div>';
                 }
             }
-
-            document.getElementById('messageInput').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    enviarMensaje();
-                }
-            });
         </script>
     </body>
     </html>
@@ -243,9 +211,7 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log('🚀 Servidor funcionando en puerto ' + PORT);
-  console.log('🌐 Probador: https://tu-bot.onrender.com');
-  console.log('❤️  Health: https://tu-bot.onrender.com/health');
+  console.log('🚀 Bot mejorado en puerto ' + PORT);
 });
 
 module.exports = app;
