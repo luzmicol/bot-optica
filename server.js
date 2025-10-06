@@ -18,16 +18,10 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { userId, message } = req.body;
     
-    console.log('📩 Mensaje recibido:', { userId, message });
+    console.log('Mensaje recibido:', { userId, message });
     
     const mensajeLower = message.toLowerCase();
     let respuesta = '';
-
-    // Inicializar DataManager
-    if (!global.dataManager) {
-      global.dataManager = new DataManager();
-      await global.dataManager.initialize();
-    }
 
     if (mensajeLower.includes('hola') || mensajeLower.includes('buenas')) {
       respuesta = '¡Hola! Soy Luna 👋, asistente de Hypnottica. ¿En qué puedo ayudarte?\n\nPodés consultar:\n• 👓 Armazones en stock\n• 👁️ Lentes de contacto\n• 🧴 Líquidos y accesorios\n• 💰 Precios\n• 📍 Dirección y horarios';
@@ -36,62 +30,30 @@ app.post('/api/chat', async (req, res) => {
                mensajeLower.includes('ray-ban') || mensajeLower.includes('oakley') || 
                mensajeLower.includes('vulk') || mensajeLower.includes('sarkany')) {
       
-      // OBTENER MARCAS REALES DEL SHEET
-      const marcas = await global.dataManager.getMarcasDisponibles();
-      
-      if (marcas.length > 0) {
-        respuesta = `👓 **Marcas disponibles en stock:**\n\n${marcas.map(marca => `• ${marca}`).join('\n')}\n\n¿Te interesa ver modelos de alguna marca en particular?`;
-      } else {
-        respuesta = '👓 Estamos actualizando el stock. ¿Qué marca te interesa? Trabajamos con las principales marcas del mercado.';
-      }
+      respuesta = `👓 **Marcas que trabajamos:**\n\n• Ray-Ban\n• Oakley\n• Vulk\n• Sarkany\n• Y muchas más\n\n¿Te interesa ver disponibilidad de alguna marca en particular?`;
 
     } else if (mensajeLower.includes('stock') || mensajeLower.includes('disponible') || 
                mensajeLower.includes('tienen') || mensajeLower.includes('modelo')) {
       
-      // BUSCAR EN DATOS REALES
-      const armazones = await global.dataManager.buscarArmazones(mensajeLower);
-      
-      if (armazones.length > 0) {
-        respuesta = `📦 **Encontramos ${armazones.length} modelos:**\n\n`;
-        
-        armazones.slice(0, 5).forEach((armazon, index) => {
-          respuesta += `${index + 1}. **${armazon.marca}** - ${armazon.modelo}\n`;
-          respuesta += `   🎨 ${armazon.color} | 💰 $${armazon.precio} | 📦 ${armazon.stock} unidades\n`;
-          if (armazon.descripcion) respuesta += `   📝 ${armazon.descripcion}\n`;
-          respuesta += '\n';
-        });
-        
-        if (armazones.length > 5) {
-          respuesta += `*... y ${armazones.length - 5} modelos más.*\n\n`;
-        }
-        
-        respuesta += '¿Te interesa alguno en particular?';
-      } else {
-        respuesta = '🔍 No encontré modelos con ese criterio. ¿Podés ser más específico? Por ejemplo: "Ray-Ban negro" o "oakley deportivo"';
-      }
+      respuesta = '📦 Para consultar stock específico, necesito que me digas:\n\n• Qué marca te interesa (Ray-Ban, Oakley, Vulk, etc.)\n• O algún modelo en particular\n\n¿Qué estás buscando?';
 
     } else if (mensajeLower.includes('lente') && mensajeLower.includes('contacto')) {
-      const lentes = global.dataManager.getLentesContacto();
-      respuesta = `👁️ **Lentes de contacto disponibles:**\n\n${lentes.map(l => `• **${l.marca}** (${l.tipos.join(', ')}) - $${l.precio}`).join('\n')}\n\n¿Te interesa alguna marca?`;
+      respuesta = `👁️ **Lentes de contacto disponibles:**\n\n• Acuvue Oasis (Mensuales/Diarios)\n• Biofinity (Mensuales)\n• Air Optix (Mensuales)\n\n¿Te interesa alguna marca?`;
 
     } else if (mensajeLower.includes('liquido') || mensajeLower.includes('solucion')) {
-      const liquidos = global.dataManager.getLiquidos();
-      respuesta = `🧴 **Líquidos y soluciones:**\n\n${liquidos.map(l => `• **${l.producto}** (${l.marcas.join(', ')}) - $${l.precio}`).join('\n')}\n\n¿Qué tipo de líquido necesitás?`;
+      respuesta = `🧴 **Líquidos y soluciones:**\n\n• Solución Multiuso (Renu, Opti-Free)\n• Gotas Humectantes (Systane, Blink)\n• Peróxido (Ao Sept, Clear Care)\n\n¿Qué tipo de líquido necesitás?`;
 
     } else if (mensajeLower.includes('precio') || mensajeLower.includes('cuesta') || mensajeLower.includes('valor')) {
-      // OBTENER RANGO DE PRECIOS REAL
-      const armazones = await global.dataManager.getArmazonesEnStock();
-      const precios = armazones.map(a => a.precio).filter(p => p > 0);
-      const minPrecio = precios.length > 0 ? Math.min(...precios) : 55000;
-      const maxPrecio = precios.length > 0 ? Math.max(...precios) : 370000;
-      
-      respuesta = `💰 **Rangos de precios:**\n\n👓 **Armazones:** $${minPrecio} - $${maxPrecio}\n👁️ **Lentes de contacto:** $15.000 - $25.000\n🧴 **Líquidos:** $3.500 - $7.000\n\n*Los precios varían según marca y características.*`;
+      respuesta = `💰 **Rangos de precios:**\n\n👓 Armazones: $55.000 - $370.000\n👁️ Lentes de contacto: $15.000 - $25.000\n🧴 Líquidos: $3.500 - $7.000\n\n*Los precios varían según marca y características.*`;
 
     } else if (mensajeLower.includes('direccion') || mensajeLower.includes('ubicacion')) {
       respuesta = '📍 **Hypnottica Óptica**\nSerrano 684, Villa Crespo, CABA\n🚇 A 4 cuadras de Ángel Gallardo (Línea B)\n📞 1132774631';
 
     } else if (mensajeLower.includes('horario')) {
       respuesta = '⏰ **Horarios de atención:**\nLunes a Sábado: 10:30 - 19:30\n\n¿Te sirve algún día en particular?';
+
+    } else if (mensajeLower.includes('obra social')) {
+      respuesta = '🏥 **Obras sociales que aceptamos:**\n\n• Medicus\n• Osetya\n• Construir Salud\n• Swiss Medical\n\n¿Tenés alguna en particular?';
 
     } else {
       respuesta = `🤔 No estoy segura de entender "${message}".\n\nPodés preguntarme por:\n• Marcas y modelos de armazones\n• Stock disponible\n• Precios\n• Lentes de contacto\n• Líquidos y accesorios\n• Horarios y dirección`;
@@ -107,91 +69,8 @@ app.post('/api/chat', async (req, res) => {
     console.error('Error en /api/chat:', error);
     res.status(500).json({
       success: false,
-      response: '⚠️ Estoy teniendo dificultades para acceder a la información. Por favor, intentá nuevamente.',
+      response: '⚠️ Estoy teniendo dificultades técnicas. Por favor, intentá nuevamente.',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-    // DETECCIÓN MEJORADA
-    if (mensajeLower.includes('hola') || mensajeLower.includes('buenas')) {
-      respuesta = '¡Hola! Soy Luna, la asistente de Hypnottica. ¿En qué puedo ayudarte?\n\nPodés preguntarme por:\n• 👓 Armazones y marcas\n• 👁️ Lentes de contacto  \n• 💰 Precios y promociones\n• 🏥 Obras sociales\n• ⏰ Horarios\n• 📍 Dirección';
-
-    } else if (mensajeLower.includes('direccion') || mensajeLower.includes('ubicacion') || mensajeLower.includes('dónde') || mensajeLower.includes('donde')) {
-      respuesta = '📍 **Estamos en:**\nSerrano 684, Villa Crespo, CABA\n\n🚇 *A 4 cuadras del subte Ángel Gallardo (Línea B)*\n\n¿Querés que te comparta la ubicación en Google Maps?';
-
-    } else if (mensajeLower.includes('horario') || mensajeLower.includes('hora') || mensajeLower.includes('abren') || mensajeLower.includes('cierran')) {
-      respuesta = '⏰ **Nuestros horarios:**\nLunes a Sábado: 10:30 - 19:30\nDomingos: Cerrado\n\n¿Te sirve algún día en particular?';
-
-    } else if (mensajeLower.includes('precio') || mensajeLower.includes('cuesta') || mensajeLower.includes('valor') || mensajeLower.includes('cuanto')) {
-      respuesta = '💰 **Rangos de precios:**\n\n👓 **Armazones:** $55.000 - $370.000\n👁️ **Lentes de contacto:** $15.000 - $40.000\n🧴 **Líquidos:** $3.500 - $7.000\n\n💡 *Los precios varían según marca y características.*\n¿Te interesa algún producto en particular?';
-
-    } else if (mensajeLower.includes('obra social') || mensajeLower.includes('prepaga') || mensajeLower.includes('medicus') || mensajeLower.includes('osetya') || mensajeLower.includes('swiss')) {
-      respuesta = '🏥 **Obras sociales que aceptamos:**\n\n• Medicus\n• Osetya\n• Construir Salud\n• Swiss Medical\n\n📋 *Requisitos: Receta vigente (60 días) y credencial.*\n¿Tenés alguna obra social en particular?';
-
-    } else if (mensajeLower.includes('vulk') || mensajeLower.includes('ray-ban') || mensajeLower.includes('oakley') || mensajeLower.includes('sarkany')) {
-      const marca = mensajeLower.includes('vulk') ? 'Vulk' : 
-                   mensajeLower.includes('ray-ban') ? 'Ray-Ban' :
-                   mensajeLower.includes('oakley') ? 'Oakley' : 'Sarkany';
-      respuesta = `👓 **Sí, trabajamos con ${marca}!**\n\nTenemos varios modelos disponibles. ¿Te interesa probarte alguno en persona? Los armazones se eligen siempre en la óptica para asegurar el ajuste perfecto.\n\n📍 *Serrano 684 - Villa Crespo*`;
-
-    } else if (mensajeLower.includes('lente') && mensajeLower.includes('contacto')) {
-      respuesta = '👁️ **¡Sí! Trabajamos con lentes de contacto.**\n\nMarcas: Acuvue, Biofinity, Air Optix\n\n¿Es tu primera vez o ya los usás?';
-
-    } else if (mensajeLower.includes('armazon') || mensajeLower.includes('marco') || mensajeLower.includes('anteojo')) {
-      respuesta = '👓 **Tenemos una gran variedad de armazones!**\n\nMarcas: Ray-Ban, Oakley, Vulk, Sarkany y más.\n\n💡 *Recomendación: Vení a la óptica para probártelos y encontrar el que mejor se adapte a tu rostro.*\n\n¿Te interesa alguna marca en particular?';
-
-    } else if (mensajeLower.includes('stock') || mensajeLower.includes('disponible') || mensajeLower.includes('tienen')) {
-      respuesta = '📦 **Para consultar stock específico:**\n\nNecesito que me digas qué producto buscás:\n• 👓 Armazones (qué marca/modelo)\n• 👁️ Lentes de contacto (qué marca)\n• 🧴 Líquidos\n\n¿Qué producto te interesa?';
-
-    } else if (mensajeLower.includes('gracias') || mensajeLower.includes('chau') || mensajeLower.includes('adiós')) {
-      respuesta = '¡Gracias por contactarte! 😊\n\nCualquier cosa, estoy acá para ayudarte.\n\n📍 *Recordá: Serrano 684, Villa Crespo*\n📞 *Tel: 1132774631*';
-
-    } else {
-      respuesta = `🤔 No estoy segura de entender "${message}".\n\n¿Podés preguntarme algo de esto?\n\n• 👓 Marcas de armazones (Ray-Ban, Vulk, etc.)\n• 👁️ Lentes de contacto\n• 💰 Precios\n• 🏥 Obras sociales\n• ⏰ Horarios\n• 📍 Dirección\n• 📦 Stock`;
-    }
-    
-    res.json({
-      success: true,
-      response: respuesta,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Error en /api/chat:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error interno del servidor'
-    });
-  }
-});
-    
-    // Respuestas básicas según el mensaje
-    let respuesta = '';
-    
-    if (message.toLowerCase().includes('hola')) {
-      respuesta = '¡Hola! Soy Luna, la asistente de Hypnottica. ¿En qué puedo ayudarte?';
-    } else if (message.toLowerCase().includes('precio')) {
-      respuesta = 'Los armazones van desde $55.000 hasta $370.000. ¿Te interesa algún modelo en particular?';
-    } else if (message.toLowerCase().includes('horario')) {
-      respuesta = 'Abrimos de lunes a sábado de 10:30 a 19:30. ¿Te sirve algún día específico?';
-    } else if (message.toLowerCase().includes('dirección')) {
-      respuesta = 'Estamos en Serrano 684, Villa Crespo. ¿Necesitás la ubicación exacta?';
-    } else {
-      respuesta = `Entendí que dijiste: "${message}". ¿Podés contarme más sobre lo que necesitás?`;
-    }
-    
-    res.json({
-      success: true,
-      response: respuesta,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Error en /api/chat:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error interno del servidor'
     });
   }
 });
@@ -241,6 +120,7 @@ app.get('/', (req, res) => {
                 background: #e9ecef;
                 color: #333;
                 margin-right: auto;
+                white-space: pre-line;
             }
             .input-container {
                 display: flex;
@@ -284,9 +164,11 @@ app.get('/', (req, res) => {
             
             <div class="quick-buttons">
                 <button class="quick-btn" onclick="enviarMensaje('Hola')">👋 Hola</button>
+                <button class="quick-btn" onclick="enviarMensaje('Marcas de armazones')">👓 Marcas</button>
                 <button class="quick-btn" onclick="enviarMensaje('Precios')">💰 Precios</button>
+                <button class="quick-btn" onclick="enviarMensaje('Lentes de contacto')">👁️ Lentes contacto</button>
                 <button class="quick-btn" onclick="enviarMensaje('Horarios')">⏰ Horarios</button>
-                <button class="quick-btn" onclick="enviarMensaje('Dirección')">📍 Dirección</button>
+                <button class="quick-btn" onclick="enviarMensaje('Obras sociales')">🏥 Obras sociales</button>
             </div>
             
             <div class="chat-box" id="chatBox">
@@ -317,7 +199,6 @@ app.get('/', (req, res) => {
                 
                 if (!mensaje) return;
                 
-                // Limpiar input si no es un mensaje predefinido
                 if (!mensajePredefinido) {
                     input.value = '';
                 }
@@ -341,15 +222,14 @@ app.get('/', (req, res) => {
                     if (datos.success) {
                         agregarMensaje(datos.response);
                     } else {
-                        agregarMensaje('❌ Error: ' + (datos.error || 'Desconocido'));
+                        agregarMensaje('Error: ' + (datos.error || 'Desconocido'));
                     }
                     
                 } catch (error) {
-                    agregarMensaje('❌ Error de conexión con el servidor');
+                    agregarMensaje('Error de conexión con el servidor');
                 }
             }
 
-            // Enter para enviar
             document.getElementById('messageInput').addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     enviarMensaje();
