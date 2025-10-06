@@ -20,7 +20,22 @@ initializeApp();
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Servidor funcionando' });
 });
-
+// Agregá esto en server.js después del health check
+app.get('/api/diagnostico', async (req, res) => {
+  try {
+    const diagnostico = await dataManager.diagnosticarConexion();
+    const marcas = await dataManager.getMarcasReales();
+    
+    res.json({
+      diagnostico,
+      marcas,
+      sheets_id: process.env.SHEETS_ARMAZONES ? '✅ Configurado' : '❌ No configurado',
+      service_account: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? '✅ Configurado' : '❌ No configurado'
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
 // Endpoint de chat MEJORADO
 app.post('/api/chat', async (req, res) => {
   try {
