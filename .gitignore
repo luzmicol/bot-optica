@@ -1,6 +1,0 @@
-# Creá el .gitignore rápido:
-echo "node_modules/" > .gitignore
-echo ".env" >> .gitignore
-
-# Verificá:
-cat .gitignore
