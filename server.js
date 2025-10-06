@@ -20,31 +20,24 @@ initializeApp();
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Servidor funcionando' });
 });
-// Endpoint de diagnóstico COMPLETO
-app.get('/api/diagnostico-completo', async (req, res) => {
+// Endpoint de diagnóstico ACTUALIZADO
+app.get('/api/diagnostico', async (req, res) => {
   try {
-    if (!dataManager) {
-      dataManager = new DataManager();
-    }
-    
     const diagnostico = await dataManager.diagnosticarConexion();
     const marcas = await dataManager.getMarcasReales();
+    const estadisticas = await dataManager.getEstadisticasCompletas();
     
     res.json({
       diagnostico: diagnostico.split('\n'),
       marcas,
+      estadisticas,
       variables_entorno: {
-        GOOGLE_SHEETS_ID: process.env.GOOGLE_SHEETS_ID ? '✅' : '❌',
-        GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? '✅' : '❌',
-        SHEETS_ARMAZONES: process.env.SHEETS_ARMAZONES ? '✅' : '❌'
-      },
-      dataManager: {
-        initialized: dataManager.initialized,
-        connectionError: dataManager.connectionError
+        SHEETS_ARMAZONES: process.env.SHEETS_ARMAZONES ? '✅ Configurado' : '❌ No configurado',
+        GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? '✅ Configurado' : '❌ No configurado'
       }
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.json({ error: error.message });
   }
 });
 // Agregá esto en server.js después del health check
