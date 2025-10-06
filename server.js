@@ -151,13 +151,13 @@ class HypnotticaFramework {
     });
   }
 
-  setupProbador() {
+   setupProbador() {
     // Crear carpeta public si no existe
     if (!fs.existsSync('public')) {
       fs.mkdirSync('public');
     }
 
-    // HTML del probador
+    // HTML del probador CORREGIDO
     const probadorHTML = `
 <!DOCTYPE html>
 <html>
@@ -189,14 +189,6 @@ class HypnotticaFramework {
             color: white; 
             padding: 20px; 
             text-align: center; 
-        }
-        .header h1 { 
-            font-size: 1.8em; 
-            margin-bottom: 5px; 
-        }
-        .header p { 
-            opacity: 0.9; 
-            font-size: 1em; 
         }
         .chat-container { 
             flex: 1;
@@ -239,10 +231,6 @@ class HypnotticaFramework {
             border: 2px solid #ddd; 
             border-radius: 25px; 
             font-size: 16px; 
-            outline: none;
-        }
-        .input-container input:focus { 
-            border-color: #25D366; 
         }
         .input-container button { 
             padding: 12px 20px; 
@@ -251,10 +239,6 @@ class HypnotticaFramework {
             border: none; 
             border-radius: 25px; 
             cursor: pointer; 
-            font-weight: bold;
-        }
-        .input-container button:hover { 
-            background: #128C7E; 
         }
         .quick-buttons { 
             padding: 12px 15px; 
@@ -262,7 +246,6 @@ class HypnotticaFramework {
             display: flex; 
             flex-wrap: wrap; 
             gap: 8px; 
-            border-top: 1px solid #eee;
         }
         .quick-button { 
             padding: 8px 12px; 
@@ -272,29 +255,10 @@ class HypnotticaFramework {
             color: #25D366; 
             cursor: pointer; 
             font-size: 12px; 
-            transition: all 0.3s;
-        }
-        .quick-button:hover { 
-            background: #25D366; 
-            color: white; 
-        }
-        .typing { 
-            color: #666; 
-            font-style: italic; 
-            padding: 10px;
         }
         @keyframes fadeIn { 
             from { opacity: 0; transform: translateY(10px); } 
             to { opacity: 1; transform: translateY(0); } 
-        }
-        .status {
-            background: #e7f3ff;
-            padding: 8px 12px;
-            margin: 5px 15px;
-            border-radius: 10px;
-            font-size: 12px;
-            color: #0066cc;
-            text-align: center;
         }
     </style>
 </head>
@@ -303,10 +267,6 @@ class HypnotticaFramework {
         <div class="header">
             <h1>🤖 Probador - Hypnottica Bot</h1>
             <p>Probá las respuestas del bot en tiempo real</p>
-        </div>
-        
-        <div class="status" id="status">
-            ✅ Conectado - Escribí un mensaje o usá los botones rápidos
         </div>
         
         <div class="chat-container" id="chatContainer">
@@ -325,118 +285,80 @@ class HypnotticaFramework {
             </div>
         </div>
         
-        <div class="quick-buttons" id="quickButtons">
-            <div class="quick-button" onclick="sendQuickMessage('Hola')">👋 Hola</div>
-            <div class="quick-button" onclick="sendQuickMessage('Qué armazones tienen?')">👓 Armazones</div>
-            <div class="quick-button" onclick="sendQuickMessage('Precios')">💰 Precios</div>
-            <div class="quick-button" onclick="sendQuickMessage('Lentes de contacto')">👁️ Lentes contacto</div>
-            <div class="quick-button" onclick="sendQuickMessage('Horarios')">⏰ Horarios</div>
-            <div class="quick-button" onclick="sendQuickMessage('Dirección')">📍 Dirección</div>
-            <div class="quick-button" onclick="sendQuickMessage('Obras sociales')">🏥 Obras sociales</div>
-            <div class="quick-button" onclick="sendQuickMessage('Stock')">📦 Stock</div>
+        <div class="quick-buttons">
+            <div class="quick-button" onclick="enviarMensajeRapido('Hola')">👋 Hola</div>
+            <div class="quick-button" onclick="enviarMensajeRapido('Qué armazones tienen?')">👓 Armazones</div>
+            <div class="quick-button" onclick="enviarMensajeRapido('Precios')">💰 Precios</div>
+            <div class="quick-button" onclick="enviarMensajeRapido('Lentes de contacto')">👁️ Lentes contacto</div>
+            <div class="quick-button" onclick="enviarMensajeRapido('Horarios')">⏰ Horarios</div>
+            <div class="quick-button" onclick="enviarMensajeRapido('Dirección')">📍 Dirección</div>
         </div>
         
         <div class="input-container">
-            <input type="text" id="messageInput" placeholder="Escribe tu mensaje..." onkeypress="handleKeyPress(event)">
-            <button onclick="sendMessage()">Enviar</button>
+            <input type="text" id="mensajeInput" placeholder="Escribe tu mensaje...">
+            <button onclick="enviarMensaje()">Enviar</button>
         </div>
     </div>
 
     <script>
-        let userId = 'user-' + Math.random().toString(36).substr(2, 9);
-        let isTyping = false;
+        const userId = 'user-' + Math.random().toString(36).substring(2, 9);
         
-        function updateStatus(message, isError = false) {
-            const status = document.getElementById('status');
-            status.textContent = message;
-            status.style.background = isError ? '#ffe7e7' : '#e7f3ff';
-            status.style.color = isError ? '#cc0000' : '#0066cc';
-        }
-        
-        function addMessage(message, isUser = false) {
+        function agregarMensaje(mensaje, esUsuario = false) {
             const chatContainer = document.getElementById('chatContainer');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = isUser ? 'message user-message' : 'message bot-message';
-            messageDiv.textContent = message;
-            chatContainer.appendChild(messageDiv);
+            const mensajeDiv = document.createElement('div');
+            mensajeDiv.className = esUsuario ? 'message user-message' : 'message bot-message';
+            mensajeDiv.textContent = mensaje;
+            chatContainer.appendChild(mensajeDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
         
-        function showTyping() {
-            if (isTyping) return;
-            isTyping = true;
-            const chatContainer = document.getElementById('chatContainer');
-            const typingDiv = document.createElement('div');
-            typingDiv.className = 'typing';
-            typingDiv.id = 'typingIndicator';
-            typingDiv.textContent = 'Luna está escribiendo...';
-            chatContainer.appendChild(typingDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-        
-        function hideTyping() {
-            isTyping = false;
-            const typingIndicator = document.getElementById('typingIndicator');
-            if (typingIndicator) {
-                typingIndicator.remove();
-            }
-        }
-        
-        async function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const message = input.value.trim();
+        async function enviarMensaje() {
+            const input = document.getElementById('mensajeInput');
+            const mensaje = input.value.trim();
             
-            if (!message) return;
+            if (!mensaje) return;
             
-            addMessage(message, true);
+            agregarMensaje(mensaje, true);
             input.value = '';
-            updateStatus('🔄 Enviando mensaje...');
-            
-            showTyping();
             
             try {
-                const response = await fetch('/api/chat', {
+                const respuesta = await fetch('/api/chat', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json' 
+                    },
                     body: JSON.stringify({ 
                         userId: userId,
-                        message: message 
+                        message: mensaje 
                     })
                 });
                 
-                const data = await response.json();
-                hideTyping();
+                const datos = await respuesta.json();
                 
-                if (data.success) {
-                    addMessage(data.response);
-                    updateStatus('✅ Mensaje recibido - ' + new Date().toLocaleTimeString());
+                if (datos.success) {
+                    agregarMensaje(datos.response);
                 } else {
-                    addMessage('❌ Error: ' + (data.error || 'Desconocido'));
-                    updateStatus('❌ Error en la respuesta', true);
+                    agregarMensaje('Error: ' + (datos.error || 'Desconocido'));
                 }
                 
             } catch (error) {
-                hideTyping();
-                addMessage('❌ Error de conexión con el servidor');
-                updateStatus('❌ Error de conexión', true);
-                console.error('Error:', error);
+                agregarMensaje('Error de conexión con el servidor');
             }
         }
         
-        function sendQuickMessage(message) {
-            document.getElementById('messageInput').value = message;
-            sendMessage();
+        function enviarMensajeRapido(mensaje) {
+            document.getElementById('mensajeInput').value = mensaje;
+            enviarMensaje();
         }
-        
-        function handleKeyPress(event) {
-            if (event.key === 'Enter') {
-                sendMessage();
+
+        // Enter para enviar
+        document.getElementById('mensajeInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                enviarMensaje();
             }
-        }
-        
-        // Mostrar userId actual en consola
-        console.log('User ID para testing:', userId);
-        updateStatus('✅ Conectado - User: ' + userId);
+        });
+
+        console.log('User ID:', userId);
     </script>
 </body>
 </html>
