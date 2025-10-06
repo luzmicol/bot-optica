@@ -1,4 +1,4 @@
-// core/DataManager.js - VERSIÓN MEJORADA
+// core/DataManager.js - VERSIÓN CORREGIDA
 const { google } = require('googleapis');
 
 class DataManager {
@@ -14,14 +14,19 @@ class DataManager {
     console.log('📊 Inicializando DataManager...');
     
     try {
-      // VERIFICACIÓN MEJORADA - USAR SHEETS_ARMAZONES
+      // VERIFICACIÓN MEJORADA
       if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
         throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON no configurado');
       }
       
-      if (!process.env.SHEETS_ARMAZONES) {
-        throw new Error('SHEETS_ARMAZONES no configurado - usa el ID específico del sheet de armazones');
+      // USAR GOOGLE_SHEETS_ID para el ID del documento
+      if (!process.env.GOOGLE_SHEETS_ID) {
+        throw new Error('GOOGLE_SHEETS_ID no configurado');
       }
+
+      // SHEETS_ARMAZONES es el nombre de la hoja (ya lo tienes como "STOCK ARMAZONES 1")
+      const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1';
+      console.log('📋 Nombre de hoja:', sheetName);
 
       console.log('🔑 Parseando credenciales...');
       const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
@@ -37,16 +42,16 @@ class DataManager {
 
       this.sheets = google.sheets({ version: 'v4', auth });
       
-      // TEST CONEXIÓN CON SHEET CORRECTO
-      console.log('🧪 Probando conexión con sheet de armazones...');
+      // TEST CONEXIÓN CON GOOGLE_SHEETS_ID
+      console.log('🧪 Probando conexión...');
       await this.sheets.spreadsheets.get({
-        spreadsheetId: process.env.SHEETS_ARMAZONES
+        spreadsheetId: process.env.GOOGLE_SHEETS_ID
       });
       
       this.initialized = true;
       this.connectionError = null;
       
-      console.log('✅ DataManager CONECTADO a Google Sheets (Armazones)');
+      console.log('✅ DataManager CONECTADO a Google Sheets');
       return true;
       
     } catch (error) {
@@ -69,12 +74,17 @@ class DataManager {
 
     try {
       console.log('🔍 Consultando TODOS los armazones en Google Sheets...');
-      console.log('📋 Sheet ID Armazones:', process.env.SHEETS_ARMAZONES);
       
-      // RANGO AMPLIADO para leer ~700 filas
+      // USAR GOOGLE_SHEETS_ID para el documento y SHEETS_ARMAZONES para el nombre de la hoja
+      const sheetName = process.env.SHEETS_ARMAZONES || 'STOCK ARMAZONES 1';
+      const range = `${sheetName}!C4:T700`;
+      
+      console.log('📋 Documento ID:', process.env.GOOGLE_SHEETS_ID);
+      console.log('📄 Rango:', range);
+      
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: process.env.SHEETS_ARMAZONES,
-        range: 'STOCK ARMAZONES 1!C4:T700', // 👈 CAMBIADO A 700 FILAS
+        spreadsheetId: process.env.GOOGLE_SHEETS_ID,  // ID del documento
+        range: range,  // Hoja específica + rango
       });
 
       const rows = response.data.values || [];
@@ -126,12 +136,14 @@ class DataManager {
       console.log(`   - Filas con stock > 0: ${filasConStock}`);
       console.log(`   - Armazones válidos: ${armazones.length}`);
       
-      // DEBUG: Mostrar distribución de marcas
-      const marcasCount = {};
-      armazones.forEach(a => {
-        marcasCount[a.marca] = (marcasCount[a.marca] || 0) + 1;
-      });
-      console.log('🏷️ Distribución por marcas:', marcasCount);
+      // DEBUG: Mostrar distribución de marcas (solo si hay datos)
+      if (armazones.length > 0) {
+        const marcasCount = {};
+        armazones.forEach(a => {
+          marcasCount[a.marca] = (marcasCount[a.marca] || 0) + 1;
+        });
+        console.log('🏷️ Distribución por marcas:', marcasCount);
+      }
       
       return armazones.length > 0 ? armazones : this.getDatosBasicos();
       
@@ -163,13 +175,13 @@ class DataManager {
     }
   }
 
-  // Resto de los métodos se mantienen igual...
+  // Datos básicos MEJORADOS - SOLO DATOS REALES
   getDatosBasicos() {
     return [
       {
         marca: 'Vulk',
         modelo: 'Consulta en local',
-        color: 'Varios colores', 
+        color: 'Varios colores',
         stock: 1,
         precio: 0,
         descripcion: 'Stock actualizado en óptica'
@@ -214,25 +226,63 @@ class DataManager {
   }
 
   getMarcasLentesContacto() {
-    return ['Acuvue Oasis', 'Biofinity', 'Air Optix'];
+    return ['Acuvue Oasis', 'Biofinity', 'Air Optix']; // EXACTAMENTE como dijiste
+  }
+
+  getCombos() {
+    return [
+      {
+        nombre: 'Kit Limpieza Básico',
+        productos: ['Líquido limpieza 60ml', 'Paño microfibra premium'],
+        precio: 9500
+      },
+      {
+        nombre: 'Kit Estuche + Limpieza', 
+        productos: ['Estuche plástico', 'Líquido limpieza', 'Paño microfibra'],
+        precio: 12500
+      },
+      {
+        nombre: 'Kit Viaje / Bolsillo',
+        productos: ['Estuche plástico pequeño', 'Paño microfibra', 'Cordón tanza elástico'],
+        precio: 10500
+      },
+      {
+        nombre: 'Kit Premium / Regalo',
+        productos: ['Estuche Origami', 'Estuche LC', 'Líquido de limpieza', 'Paño microfibra', 'Cordón neoprene'],
+        precio: 40000
+      },
+      {
+        nombre: 'Combo Deportivo / Outdoor',
+        productos: ['Estuche premium', 'Cordón flotador', 'Cordón ajustador', 'Líquido limpieza'],
+        precio: 45000
+      }
+    ];
   }
 
   // DIAGNÓSTICO ACTUALIZADO
   async diagnosticarConexion() {
     const checks = [];
     
+    // Check 1: Variables de entorno
     if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
       checks.push('❌ GOOGLE_SERVICE_ACCOUNT_JSON no configurado');
     } else {
       checks.push('✅ GOOGLE_SERVICE_ACCOUNT_JSON configurado');
     }
     
-    if (!process.env.SHEETS_ARMAZONES) {
-      checks.push('❌ SHEETS_ARMAZONES no configurado');
+    if (!process.env.GOOGLE_SHEETS_ID) {
+      checks.push('❌ GOOGLE_SHEETS_ID no configurado');
     } else {
-      checks.push('✅ SHEETS_ARMAZONES configurado');
+      checks.push('✅ GOOGLE_SHEETS_ID configurado');
     }
 
+    if (!process.env.SHEETS_ARMAZONES) {
+      checks.push('⚠️ SHEETS_ARMAZONES no configurado (usando nombre por defecto)');
+    } else {
+      checks.push(`✅ SHEETS_ARMAZONES configurado: "${process.env.SHEETS_ARMAZONES}"`);
+    }
+
+    // Check 2: Credenciales válidas
     try {
       const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
       if (!credentials.client_email) checks.push('❌ client_email faltante');
@@ -245,12 +295,13 @@ class DataManager {
       checks.push(`❌ Error parseando credenciales: ${error.message}`);
     }
 
+    // Check 3: Conexión real
     try {
       if (this.initialized) {
         const test = await this.sheets.spreadsheets.get({
-          spreadsheetId: process.env.SHEETS_ARMAZONES
+          spreadsheetId: process.env.GOOGLE_SHEETS_ID
         });
-        checks.push('✅ Conexión a Sheets Armazones OK');
+        checks.push('✅ Conexión a Sheets OK');
         
         const armazones = await this.getArmazonesEnStock();
         checks.push(`✅ Datos: ${armazones.length} armazones con stock`);
