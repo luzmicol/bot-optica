@@ -1,4 +1,4 @@
-// core/DataManager.js - ARCHIVO COMPLETO
+// core/DataManager.js - VERSIÓN MEJORADA
 const { google } = require('googleapis');
 
 class DataManager {
@@ -23,17 +23,27 @@ class DataManager {
         throw new Error('SHEETS_ARMAZONES no configurado');
       }
 
-      const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-      
+      // Parseo seguro y normalizo saltos de línea en private_key
+      const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+      let credentials;
+      try {
+        credentials = JSON.parse(raw);
+      } catch (e) {
+        throw new Error('No se pudo parsear GOOGLE_SERVICE_ACCOUNT_JSON: ' + e.message);
+      }
+
+      if (credentials.private_key && typeof credentials.private_key === 'string') {
+        credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+      }
+
+      // Instancio GoogleAuth y obtengo cliente
       const auth = new google.auth.GoogleAuth({
-        credentials: {
-          client_email: credentials.client_email,
-          private_key: credentials.private_key,
-        },
+        credentials,
         scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
       });
 
-      this.sheets = google.sheets({ version: 'v4', auth });
+      const client = await auth.getClient();
+      this.sheets = google.sheets({ version: 'v4', auth: client });
       this.initialized = true;
       this.connectionError = null;
       
@@ -41,8 +51,9 @@ class DataManager {
       return true;
       
     } catch (error) {
-      this.connectionError = error.message;
-      console.error('❌ Error conectando a Google Sheets:', error.message);
+      this.initialized = false;
+      this.connectionError = error.message || String(error);
+      console.error('❌ Error conectando a Google Sheets:', this.connectionError);
       return false;
     }
   }
@@ -80,22 +91,27 @@ class DataManager {
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         
-        if (row[0] && row[0].trim() !== '') {
+        // row[0] -> columna C (Marca)
+        if (row[0] && row[0].toString().trim() !== '') {
+          // row[6] -> columna I (Cantidad)
           const cantidad = parseInt(row[6]) || 0;
           
           if (cantidad > 0) {
             const armazon = {
-              marca: row[0].trim(),
-              codigo: row[3] ? row[3].trim() : '',
-              modelo: row[4] ? row[4].trim() : '',
-              color: row[5] ? row[5].trim() : '',
+              marca: row[0] ? row[0].toString().trim() : '',
+              codigo: row[3] ? row[3].toString().trim() : '', // F -> COD. HYPNO
+              modelo: row[4] ? row[4].toString().trim() : '', // G -> Modelo
+              color: row[5] ? row[5].toString().trim() : '',  // H -> Color
               stock: cantidad,
-              precio: this.parsePrecio(row[13]),
-              descripcion: row[17] ? row[17].trim() : ''
+              precio: this.parsePrecio(row[13]),             // P -> Precio
+              descripcion: row[17] ? row[17].toString().trim() : '' // T -> Descripcion
             };
             
             if (armazon.marca && armazon.modelo) {
               armazones.push(armazon);
+            } else {
+              // si falta modelo o marca, lo registro para debug pero no lo devuelvo
+              console.log(`⚠️ Fila ${i + 4}: datos incompletos (marca/modelo) — se ignora`);
             }
           }
         }
@@ -105,8 +121,8 @@ class DataManager {
       return armazones.length > 0 ? armazones : this.getDatosBasicos();
       
     } catch (error) {
-      console.error('❌ Error leyendo Google Sheets:', error.message);
-      this.connectionError = error.message;
+      console.error('❌ Error leyendo Google Sheets:', error.message || error);
+      this.connectionError = error.message || String(error);
       return this.getDatosBasicos();
     }
   }
@@ -139,7 +155,7 @@ class DataManager {
     try {
       const armazones = await this.getArmazonesEnStock();
       return armazones.filter(a => 
-        a.marca.toLowerCase().includes(marcaBuscada.toLowerCase())
+        a.marca && a.marca.toLowerCase().includes(marcaBuscada.toLowerCase())
       );
     } catch (error) {
       return this.getDatosBasicos();
@@ -185,6 +201,18 @@ class DataManager {
         precio: 45000
       }
     ];
+  }
+
+  // Nuevo: Método que usa el stock real para devolver rango de precios
+  async getRangoPreciosReal() {
+    try {
+      const armazones = await this.getArmazonesEnStock();
+      const precios = armazones.map(a => Number(a.precio)).filter(p => !isNaN(p) && p > 0);
+      if (precios.length === 0) return null;
+      return { min: Math.min(...precios), max: Math.max(...precios) };
+    } catch (error) {
+      return null;
+    }
   }
 
   // Método para diagnosticar la conexión
